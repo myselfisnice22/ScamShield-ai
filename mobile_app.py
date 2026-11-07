@@ -6,11 +6,11 @@ import streamlit as st
 import pytesseract
 from PIL import Image, UnidentifiedImageError
 
-from experiment_v9 import scan_message
+from experiment_v10 import scan_message
 
 
 # ==========================================
-# SCAMSHIELD AI - EXPERIMENT 9
+# SCAMSHIELD AI - EXPERIMENT 10
 # TEXT + SCREENSHOT SCANNER
 # ==========================================
 
@@ -64,6 +64,33 @@ div[data-testid="stForm"] {
 textarea {
     font-size: 16px !important;
     line-height: 1.5 !important;
+}
+
+/* Experiment 10: verdict-source badges (black, red and white) */
+.ss-source {
+    border: 1px solid #ff4b4b;
+    border-radius: 14px;
+    padding: .8rem 1rem;
+    margin: .4rem 0 .8rem 0;
+    background: #0e1117;
+    color: #ffffff;
+}
+
+.ss-badge {
+    display: inline-block;
+    border-radius: 999px;
+    padding: .15rem .65rem;
+    margin: .15rem .3rem .15rem 0;
+    font-size: .85rem;
+    font-weight: bold;
+    border: 1px solid #ff4b4b;
+    color: #ffffff;
+    background: #262730;
+}
+
+.ss-badge.on {
+    background: #ff4b4b;
+    color: #ffffff;
 }
 
 @media (max-width: 600px) {
@@ -132,7 +159,10 @@ def run_scan(message):
             {
                 "preview": message[:85],
                 "risk": report["risk"],
-                "prediction": report["v7_prediction"]
+                "prediction": report["ai_prediction"],
+                "source": report.get(
+                    "verdict_source_label", ""
+                )
             }
         )
 
@@ -149,7 +179,7 @@ def run_scan(message):
 
 st.title("🛡️ ScamShield AI 😎")
 
-st.caption("Mobile Edition | Experiment 9")
+st.caption("Mobile Edition | Experiment 10")
 
 st.write(
     "Scan suspicious SMS messages, WhatsApp "
@@ -365,7 +395,7 @@ results_tab, history_tab, info_tab = st.tabs([
 
 
 # ==========================================
-# RESULTS - EXPERIMENT 9
+# RESULTS - EXPERIMENT 10
 # ==========================================
 
 with results_tab:
@@ -387,9 +417,17 @@ with results_tab:
 
         prediction = str(
             report.get(
+                "ai_prediction", "unknown"
+            )
+        )
+
+        v7_prediction = str(
+            report.get(
                 "v7_prediction", "unknown"
             )
         )
+
+        source = report.get("verdict_source", "none")
 
         warnings = report.get("warnings", [])
         urls = report.get("urls", [])
@@ -403,6 +441,19 @@ with results_tab:
                 "Strong scam indicators were detected. "
                 "Do not reply, click suspicious links, "
                 "or share personal information."
+            )
+
+        elif risk.upper().startswith(
+            "NEEDS REVIEW - AI MODEL ONLY"
+        ):
+
+            st.warning(
+                "⚠️ NEEDS REVIEW — AI MODEL ONLY\n\n"
+                "Only the AI model flagged this message. "
+                "No security rule found scam behaviour "
+                "(such as password requests, fees, or "
+                "changed bank details). Check who sent "
+                "it before acting."
             )
 
         elif risk.upper().startswith("NEEDS"):
@@ -427,6 +478,36 @@ with results_tab:
             "Final assessment: " + risk
         )
 
+        # ----------------------------------
+        # Experiment 10: where did the
+        # verdict come from?
+        # ----------------------------------
+
+        st.subheader("🧭 Where Did This Verdict Come From?")
+
+        ai_on = source in ("ai", "ai_and_rules")
+        rules_on = source in ("rules", "ai_and_rules")
+
+        st.markdown(
+            '<div class="ss-source">'
+            "<b>Verdict source: "
+            + str(report.get(
+                "verdict_source_label", "Unknown"
+            ))
+            + "</b><br>"
+            '<span class="ss-badge'
+            + (" on" if ai_on else "")
+            + '">🧠 AI model</span>'
+            '<span class="ss-badge'
+            + (" on" if rules_on else "")
+            + '">🛡️ Security rules</span>'
+            "</div>",
+            unsafe_allow_html=True
+        )
+
+        for line in report.get("explanation", []):
+            st.write("• " + str(line))
+
         st.divider()
 
         st.subheader("🔎 Why This Result?")
@@ -443,6 +524,15 @@ with results_tab:
                     "description",
                     "Unspecified warning"
                 )
+
+                rule_set = str(
+                    finding.get("source", "")
+                ).upper()
+
+                if rule_set:
+                    description += (
+                        f" ({rule_set} rule)"
+                    )
 
                 severity = finding.get(
                     "severity", "low"
@@ -470,19 +560,37 @@ with results_tab:
             )
 
         with st.expander(
-            "🧠 View Original AI Prediction"
+            "🧠 View AI Model Details"
         ):
 
+            probability = report.get(
+                "ai_scam_probability"
+            )
+
             st.write(
-                "**V7 AI prediction:** "
+                "**V10 AI prediction:** "
                 + prediction.upper()
             )
 
+            if probability is not None:
+                st.write(
+                    "**Calibrated scam probability:** "
+                    f"{float(probability) * 100:.0f}% "
+                    f"({report.get('ai_confidence', '?')}"
+                    " confidence)"
+                )
+
+            st.write(
+                "**Original V7 prediction:** "
+                + v7_prediction.upper()
+            )
+
             st.caption(
-                "The original AI prediction can differ "
-                "from the final verdict. Experiments "
-                "8 and 9 add security checks to "
-                "the AI prediction."
+                "The AI judges word patterns only. "
+                "In Experiment 10 the AI alone can "
+                "raise a message to NEEDS REVIEW, but "
+                "HIGH RISK needs supporting evidence "
+                "from the security rules."
             )
 
         if urls:
@@ -545,8 +653,12 @@ with history_tab:
                 )
 
                 st.caption(
-                    "Original AI: "
+                    "AI: "
                     + entry["prediction"].upper()
+                    + (
+                        " | Source: " + entry["source"]
+                        if entry.get("source") else ""
+                    )
                 )
 
                 st.write(entry["preview"])
@@ -565,17 +677,20 @@ with info_tab:
     st.subheader("About ScamShield AI")
 
     st.write(
-        "**Version:** Experiment 9"
+        "**Version:** Experiment 10"
     )
 
     st.write(
         "**Machine-learning model:** "
-        "Frozen V7 Naive Bayes"
+        "V10 Naive Bayes (V7 data + synthetic "
+        "workplace examples), with calibrated "
+        "probability"
     )
 
     st.write(
         "**Security analysis:** "
-        "Experiment 8 + Experiment 9 rules"
+        "Experiment 8, 9 and 10 rules "
+        "(Experiment 10 adds workplace-fraud checks)"
     )
 
     st.write(
@@ -597,6 +712,14 @@ with info_tab:
     )
 
     st.write(
+        "**How verdicts work:** "
+        "The AI alone can only give NEEDS REVIEW. "
+        "HIGH RISK requires security-rule evidence, "
+        "and every result says whether it came "
+        "from the AI model, the rules, or both."
+    )
+
+    st.write(
         "**Link safety:** "
         "ScamShield analyzes link text "
         "without visiting the links."
@@ -610,5 +733,5 @@ with info_tab:
 st.divider()
 
 st.caption(
-    "🛡️ ScamShield AI 😎 | Experiment 9"
+    "🛡️ ScamShield AI 😎 | Experiment 10"
 )

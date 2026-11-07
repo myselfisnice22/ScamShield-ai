@@ -1,0 +1,9 @@
+# ScamShield AI theme: professional black, red and white.
+# (These are Streamlit's own dark-theme colours, written down so every
+# visitor sees the same look whatever their browser/device setting is.)
+[theme]
+base = "dark"
+primaryColor = "#FF4B4B"
+backgroundColor = "#0E1117"
+secondaryBackgroundColor = "#262730"
+textColor = "#FFFFFF"
