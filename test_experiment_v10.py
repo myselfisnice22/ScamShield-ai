@@ -12,6 +12,7 @@ Streamlit are not installed on the computer running the tests.
 import contextlib
 import importlib
 import io
+import os
 import re
 import shutil
 import unittest
@@ -353,11 +354,22 @@ class TestReportFormat(unittest.TestCase):
 # 8. Screenshot (OCR) pipeline and Streamlit app
 # ==========================================================
 
-@unittest.skipUnless(shutil.which("tesseract"), "Tesseract OCR is not installed")
+# Same Windows location that mobile_app.py uses.
+WINDOWS_TESSERACT = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
+
+def _tesseract_path():
+    if os.path.isfile(WINDOWS_TESSERACT):
+        return WINDOWS_TESSERACT
+    return shutil.which("tesseract")
+
+
+@unittest.skipUnless(_tesseract_path(), "Tesseract OCR is not installed")
 class TestScreenshotPipeline(unittest.TestCase):
 
     def test_ocr_text_is_scanned(self):
         import pytesseract
+        pytesseract.pytesseract.tesseract_cmd = _tesseract_path()
         from PIL import Image, ImageDraw, ImageFont
         lines = ["Your Outlook password expires today.",
                  "Keep the same password at",
