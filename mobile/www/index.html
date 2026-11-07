@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0E1117">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self'; img-src 'self' data: blob:; connect-src *; object-src 'none'; base-uri 'none'">
+  <title>ScamShield AI</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🛡️ <span>ScamShield AI</span></div>
+    <button class="icon-btn" id="open-settings" aria-label="Settings">⚙️</button>
+  </header>
+
+  <main id="screens">
+    <!-- ============ SCAN ============ -->
+    <section class="screen active" id="screen-scan" aria-labelledby="t-scan">
+      <h1 id="t-scan">Scan a message</h1>
+      <p class="muted">Paste a suspicious SMS, WhatsApp message or email. Tip: you can also
+        <b>share</b> a message straight to ScamShield from another app.</p>
+      <label for="message" class="label">Message</label>
+      <textarea id="message" maxlength="5000" rows="8"
+                placeholder="Paste the message here..."></textarea>
+      <div class="row">
+        <span class="counter" id="counter">0 / 5000</span>
+        <button class="btn ghost small" id="paste-btn" type="button">📋 Paste</button>
+      </div>
+      <button class="btn primary" id="scan-btn" type="button">🔎 Scan message</button>
+      <p class="warning-note">Never send passwords, PINs or OTPs to anyone — including this app.</p>
+    </section>
+
+    <!-- ============ SCREENSHOT ============ -->
+    <section class="screen" id="screen-shot" aria-labelledby="t-shot">
+      <h1 id="t-shot">Scan a screenshot</h1>
+      <p class="muted">Choose a screenshot. ScamShield reads the text and checks it straight away.</p>
+      <p class="warning-note">Crop or hide passwords, OTPs, phone numbers and private details first.</p>
+      <label class="btn primary file-btn">
+        📸 Choose screenshot
+        <input type="file" id="image-input" accept="image/png,image/jpeg,image/webp" hidden>
+      </label>
+      <img id="image-preview" class="preview hidden" alt="Selected screenshot">
+    </section>
+
+    <!-- ============ RESULTS ============ -->
+    <section class="screen" id="screen-results" aria-labelledby="t-results">
+      <h1 id="t-results">Results</h1>
+      <div id="results-empty" class="card muted">Scan a message or screenshot to see the results.</div>
+      <div id="results" class="hidden">
+        <div id="verdict" class="verdict">
+          <div class="verdict-title" id="verdict-title"></div>
+          <div class="verdict-text" id="verdict-text"></div>
+        </div>
+        <p class="caption" id="risk-line"></p>
+
+        <h2>🧭 Where did this verdict come from?</h2>
+        <div class="card source-card">
+          <div><b id="source-label"></b></div>
+          <span class="badge" id="badge-ai">🧠 AI model</span>
+          <span class="badge" id="badge-rules">🛡️ Security rules</span>
+          <ul id="explanation" class="plain-list"></ul>
+        </div>
+
+        <h2>🔎 Why this result?</h2>
+        <ul id="warnings" class="warning-list"></ul>
+
+        <details class="card" id="links-box">
+          <summary>🔗 Links found (not opened)</summary>
+          <ul id="links" class="plain-list mono"></ul>
+        </details>
+
+        <details class="card" id="text-box">
+          <summary>📝 Text ScamShield read</summary>
+          <p id="extracted" class="mono pre"></p>
+        </details>
+
+        <details class="card">
+          <summary>🧠 AI model details</summary>
+          <p id="ai-details"></p>
+        </details>
+
+        <div class="row gap">
+          <button class="btn ghost" id="share-btn" type="button">📤 Share warning</button>
+          <button class="btn ghost" id="again-btn" type="button">🔁 Scan another</button>
+        </div>
+        <p class="warning-note">ScamShield is experimental. A low-risk result never proves a message is safe.</p>
+      </div>
+    </section>
+
+    <!-- ============ HISTORY ============ -->
+    <section class="screen" id="screen-history" aria-labelledby="t-history">
+      <h1 id="t-history">History</h1>
+      <label class="switch-row">
+        <input type="checkbox" id="history-toggle">
+        <span>Remember my scans on this phone</span>
+      </label>
+      <p class="muted small-text">Off by default. Only a short preview is saved, on this phone only — never on the server.</p>
+      <button class="btn ghost small" id="clear-history" type="button">🗑️ Clear history</button>
+      <ul id="history-list" class="history-list"></ul>
+      <div id="history-empty" class="card muted">No saved scans.</div>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section class="screen" id="screen-settings" aria-labelledby="t-settings">
+      <h1 id="t-settings">Settings</h1>
+      <label for="api-url" class="label">ScamShield server address</label>
+      <input type="url" id="api-url" inputmode="url" autocomplete="off" spellcheck="false"
+             placeholder="https://your-scamshield-server.example.com">
+      <div class="row gap">
+        <button class="btn primary small" id="save-api" type="button">Save</button>
+        <button class="btn ghost small" id="test-api" type="button">Test connection</button>
+      </div>
+      <p id="api-status" class="caption"></p>
+      <div class="card">
+        <h2>Privacy</h2>
+        <p class="muted">Messages and screenshots are sent to the ScamShield server for checking.
+          The server does not save them. History stays on this phone and is off by default.
+          Links are never opened.</p>
+        <h2>About</h2>
+        <p class="muted" id="about-version">ScamShield AI · Experiment 10 scanner</p>
+      </div>
+    </section>
+  </main>
+
+  <div id="busy" class="busy hidden" role="status" aria-live="polite">
+    <div class="spinner"></div><div id="busy-text">Analysing…</div>
+  </div>
+  <div id="toast" class="toast hidden" role="alert"></div>
+
+  <nav class="tabbar" aria-label="Main">
+    <button class="tab active" data-screen="scan">✍️<span>Scan</span></button>
+    <button class="tab" data-screen="shot">📸<span>Screenshot</span></button>
+    <button class="tab" data-screen="results">🔍<span>Results</span></button>
+    <button class="tab" data-screen="history">🕘<span>History</span></button>
+  </nav>
+
+  <script src="vendor/capacitor.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

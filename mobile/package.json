@@ -1,0 +1,24 @@
+{
+  "name": "scamshield-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ScamShield AI phone app (Capacitor). Talks to the ScamShield backend API.",
+  "scripts": {
+    "copy-capacitor": "node scripts/copy-capacitor.js",
+    "serve": "npm run copy-capacitor && python3 -m http.server 5173 --directory www",
+    "sync": "npm run copy-capacitor && npx cap sync",
+    "android": "npm run sync && npx cap open android",
+    "ios": "npm run sync && npx cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.6.0",
+    "@capacitor/clipboard": "8.0.1",
+    "@capacitor/core": "8.6.0",
+    "@capacitor/haptics": "8.0.2",
+    "@capacitor/ios": "8.6.0",
+    "@capacitor/share": "8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.0"
+  }
+}
