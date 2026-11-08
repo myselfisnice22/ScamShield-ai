@@ -11,6 +11,7 @@ Streamlit are not installed on the computer running the tests.
 
 import contextlib
 import importlib
+import importlib.util
 import io
 import os
 import re
@@ -368,8 +369,7 @@ def _tesseract_path():
 class TestScreenshotPipeline(unittest.TestCase):
 
     def test_ocr_text_is_scanned(self):
-        import pytesseract
-        pytesseract.pytesseract.tesseract_cmd = _tesseract_path()
+        from ocr_engine import read_text
         from PIL import Image, ImageDraw, ImageFont
         lines = ["Your Outlook password expires today.",
                  "Keep the same password at",
@@ -382,9 +382,63 @@ class TestScreenshotPipeline(unittest.TestCase):
             font = ImageFont.load_default()
         for i, line in enumerate(lines):
             draw.text((20, 20 + i * 55), line, fill="black", font=font)
-        text = pytesseract.image_to_string(image, timeout=20)
+        text = read_text(image, timeout=20)
         self.assertIn("password", text.lower())
         self.assertTrue(is_flagged(v10.scan_message(text)))
+
+
+BLOCKED_PANDAS_SCRIPT = r"""
+import sys, importlib.abc
+
+class BlockPandas(importlib.abc.MetaPathFinder):
+    # Pretend Windows Smart App Control blocks pandas, like on a real laptop.
+    def find_spec(self, name, path=None, target=None):
+        if name == "pandas" or name.startswith("pandas."):
+            raise ImportError("DLL load failed while importing reshape: "
+                              "An Application Control policy has blocked this file.")
+        return None
+
+sys.meta_path.insert(0, BlockPandas())
+MODE = sys.argv[1]
+
+if MODE == "app":
+    from streamlit.testing.v1 import AppTest
+    app = AppTest.from_file("mobile_app.py", default_timeout=60)
+    app.run()
+    print("APP_ERRORS", len(app.exception))
+else:
+    from PIL import Image, ImageDraw, ImageFont
+    from ocr_engine import read_text
+    image = Image.new("RGB", (700, 90), "white")
+    try:
+        font = ImageFont.load_default(size=32)
+    except TypeError:
+        font = ImageFont.load_default()
+    ImageDraw.Draw(image).text((20, 20), "Verify your password", fill="black", font=font)
+    print("OCR_TEXT", read_text(image).strip().lower())
+"""
+
+
+class TestBlockedPandas(unittest.TestCase):
+    """Windows can BLOCK the optional pandas library. ScamShield must still work."""
+
+    def run_script(self, mode):
+        import subprocess
+        import sys
+        result = subprocess.run([sys.executable, "-c", BLOCKED_PANDAS_SCRIPT, mode],
+                                capture_output=True, text=True, timeout=180,
+                                cwd=os.path.dirname(os.path.abspath(__file__)))
+        return result.stdout + result.stderr
+
+    @unittest.skipUnless(importlib.util.find_spec("streamlit"), "Streamlit is not installed")
+    def test_app_opens_when_pandas_is_blocked(self):
+        output = self.run_script("app")
+        self.assertIn("APP_ERRORS 0", output, output[-1500:])
+
+    @unittest.skipUnless(_tesseract_path(), "Tesseract OCR is not installed")
+    def test_ocr_works_when_pandas_is_blocked(self):
+        output = self.run_script("ocr")
+        self.assertIn("password", output, output[-1500:])
 
 
 def _streamlit_available():

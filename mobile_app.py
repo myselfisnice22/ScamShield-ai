@@ -1,10 +1,10 @@
 import hashlib
-import os
 from io import BytesIO
 
 import streamlit as st
-import pytesseract
 from PIL import Image, UnidentifiedImageError
+
+from ocr_engine import OCRError, read_text
 
 from experiment_v10 import scan_message
 from streamlit_auth import account_box, require_sign_in
@@ -22,16 +22,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Windows uses a local Tesseract installation.
-# Streamlit Cloud uses the system installation.
-windows_tesseract = (
-    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-)
-
-if os.path.isfile(windows_tesseract):
-    pytesseract.pytesseract.tesseract_cmd = (
-        windows_tesseract
-    )
+# Screenshot reading (Tesseract OCR) is loaded only when needed, by
+# ocr_engine.py. It finds the Windows installation automatically and keeps
+# working even if Windows blocks the optional "pandas" library.
 
 
 # ==========================================
@@ -238,25 +231,10 @@ def run_scan(message, announce=True):
 def read_screenshot(image):
     """Run Tesseract OCR. Returns (text, error_message)."""
     try:
-        text = pytesseract.image_to_string(
-            image,
-            timeout=20
-        )
+        text = read_text(image, timeout=20)
 
-    except pytesseract.TesseractNotFoundError:
-        return "", (
-            "Tesseract OCR was not found. "
-            "Check its installation."
-        )
-
-    except RuntimeError:
-        return "", (
-            "Text extraction timed out. "
-            "Try a smaller screenshot."
-        )
-
-    except Exception:
-        return "", "Could not read the screenshot."
+    except OCRError as error:
+        return "", str(error)
 
     text = text[:5000].strip()
 

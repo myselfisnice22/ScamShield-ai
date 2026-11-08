@@ -43,6 +43,7 @@ with contextlib.redirect_stdout(io.StringIO()):  # hide "model loaded" prints
     from experiment_v10 import VERSION, scan_message  # noqa: E402
 
 from backend import clerk_auth  # noqa: E402
+from ocr_engine import OCRError, read_text  # noqa: E402
 
 MAX_MESSAGE_CHARS = 5000
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
@@ -140,13 +141,7 @@ async def scan_image(request: Request, file: UploadFile = File(...),
                      user_id=Depends(clerk_auth.current_user)):
     check_rate_limit(request, user_id)
 
-    # Imported here so the text API still works if OCR is not installed.
-    import pytesseract
     from PIL import Image, UnidentifiedImageError
-
-    windows_tesseract = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-    if os.path.isfile(windows_tesseract):
-        pytesseract.pytesseract.tesseract_cmd = windows_tesseract
 
     data = await file.read(MAX_IMAGE_BYTES + 1)
     if len(data) > MAX_IMAGE_BYTES:
@@ -164,12 +159,12 @@ async def scan_image(request: Request, file: UploadFile = File(...),
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
         raise HTTPException(status_code=400, detail="That file is not a readable image.")
 
+    # ocr_engine loads Tesseract safely (see ocr_engine.py).
     try:
-        text = pytesseract.image_to_string(image, timeout=OCR_TIMEOUT_SECONDS)
-    except pytesseract.TesseractNotFoundError:
-        raise HTTPException(status_code=503, detail="Screenshot reading is not available on this server.")
-    except RuntimeError:
-        raise HTTPException(status_code=504, detail="Reading the screenshot took too long. Try a smaller one.")
+        text = read_text(image, timeout=OCR_TIMEOUT_SECONDS)
+    except OCRError as error:
+        status = {"unavailable": 503, "timeout": 504}.get(error.kind, 500)
+        raise HTTPException(status_code=status, detail=str(error))
 
     text = text[:MAX_MESSAGE_CHARS].strip()
     if not text:

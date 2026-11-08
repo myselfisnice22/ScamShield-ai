@@ -13,7 +13,7 @@ COPY backend/requirements.txt backend/requirements.txt
 RUN pip install --no-cache-dir -r backend/requirements.txt
 
 # Only the files the scanner needs.
-COPY AI_Model.py evaluate_scams.py experiment_v3.py experiment_v4.py \
+COPY AI_Model.py evaluate_scams.py experiment_v3.py experiment_v4.py ocr_engine.py \
      experiment_v7.py experiment_v8.py experiment_v9.py \
      experiment_v10.py experiment_v10_data.py ./
 COPY backend/__init__.py backend/api.py backend/clerk_auth.py backend/
