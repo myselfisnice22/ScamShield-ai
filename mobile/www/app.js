@@ -70,6 +70,106 @@
     $("busy").classList.toggle("hidden", !on);
   }
 
+  // ---------- sign-in with Clerk (only if a publishable key is set) ----------
+  //
+  // Clerk's own sign-in box is loaded from your Clerk instance. When signed
+  // in, every scan request carries a short-lived Clerk session token, which
+  // the Python backend checks (backend/clerk_auth.py).
+  const Auth = {
+    enabled: Boolean(CONFIG.clerkPublishableKey),
+    pendingShare: null,
+
+    clerk() { return window.Clerk || null; },
+    signedIn() { const c = this.clerk(); return Boolean(c && c.user); },
+
+    async token() {
+      if (!this.enabled) return null;
+      const c = this.clerk();
+      if (!c || !c.session) throw new Error("Please sign in first.");
+      const token = await c.session.getToken();
+      if (!token) throw new Error("Please sign in first.");
+      return token;
+    },
+
+    // pk_test_<base64("your-app.clerk.accounts.dev$")> -> "your-app.clerk.accounts.dev"
+    frontendApi(key) {
+      try {
+        const parts = key.split("_");
+        const decoded = atob(parts.slice(2).join("_"));
+        const domain = decoded.replace(/\$$/, "");
+        return /^[a-z0-9.-]+$/i.test(domain) ? domain : null;
+      } catch (e) { return null; }
+    },
+
+    loadScript(key, domain) {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://" + domain + "/npm/@clerk/clerk-js@6/dist/clerk.browser.js";
+        script.async = true;
+        script.crossOrigin = "anonymous";
+        script.setAttribute("data-clerk-publishable-key", key);
+        script.onload = resolve;
+        script.onerror = () => reject(new Error("Couldn't load the sign-in service. Check your internet connection."));
+        document.head.appendChild(script);
+      });
+    },
+
+    async init() {
+      if (!this.enabled) return;
+      document.body.classList.add("signed-out");
+      show("signin");
+      $("signin-status").textContent = "Loading sign-in…";
+      const key = CONFIG.clerkPublishableKey;
+      const domain = this.frontendApi(key);
+      if (!domain) { $("signin-status").textContent = "⚠️ The Clerk publishable key in config.js looks wrong."; return; }
+      try {
+        await this.loadScript(key, domain);
+        await this.clerk().load();
+      } catch (e) {
+        $("signin-status").textContent = "⚠️ " + (e.message || "Sign-in failed to load.");
+        return;
+      }
+      $("signin-status").textContent = "";
+      this.clerk().addListener(() => this.update());
+      this.update();
+    },
+
+    update() {
+      const c = this.clerk();
+      if (this.signedIn()) {
+        document.body.classList.remove("signed-out");
+        try { c.unmountSignIn($("clerk-signin")); } catch (e) { /* not mounted */ }
+        const email = c.user.primaryEmailAddress && c.user.primaryEmailAddress.emailAddress;
+        $("account-name").textContent = "Signed in as " + (c.user.fullName || email || "your account");
+        $("account-card").classList.remove("hidden");
+        if (document.querySelector("#screen-signin.active")) show("scan");
+        if (this.pendingShare) { const item = this.pendingShare; this.pendingShare = null; handleShared(item); }
+      } else {
+        this.showSignIn();
+      }
+    },
+
+    showSignIn() {
+      const c = this.clerk();
+      document.body.classList.add("signed-out");
+      $("account-card").classList.add("hidden");
+      show("signin");
+      if (c && c.loaded && !this.signedIn()) {
+        try { c.mountSignIn($("clerk-signin"), { appearance: { variables: { colorPrimary: "#FF4B4B" } } }); }
+        catch (e) { /* already mounted */ }
+      }
+    },
+  };
+
+  $("sign-out").addEventListener("click", async () => {
+    const c = Auth.clerk();
+    if (!c) return;
+    state.report = null;
+    $("results").classList.add("hidden");
+    $("results-empty").classList.remove("hidden");
+    await c.signOut();
+  });
+
   // ---------- talking to the API ----------
   function apiBase() {
     return (state.apiUrl || "").trim().replace(/\/+$/, "");
@@ -78,6 +178,9 @@
   async function callApi(path, options) {
     const base = apiBase();
     if (!base) throw new Error("Set the ScamShield server address in Settings (⚙️) first.");
+    options = Object.assign({}, options);
+    const token = await Auth.token();
+    if (token) options.headers = Object.assign({}, options.headers, { Authorization: "Bearer " + token });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), CONFIG.requestTimeoutMs || 45000);
     let response;
@@ -92,6 +195,10 @@
     }
     let data = null;
     try { data = await response.json(); } catch (e) { /* not JSON */ }
+    // 401 = the server did not accept the sign-in. If Clerk says we're signed
+    // out, show the sign-in box. If we ARE signed in, just show the message
+    // (otherwise the user would be stuck on an empty sign-in screen).
+    if (response.status === 401 && Auth.enabled && !Auth.signedIn()) Auth.showSignIn();
     if (!response.ok) {
       let detail = data && data.detail;
       if (Array.isArray(detail)) detail = "Please enter a message (up to 5,000 characters).";
@@ -362,6 +469,7 @@
 
   function handleShared(item) {
     if (!item || !item.type) return;
+    if (Auth.enabled && !Auth.signedIn()) { Auth.pendingShare = item; return; } // scan after sign-in
     if (item.type === "text" && item.text) {
       messageBox.value = String(item.text).slice(0, 5000);
       messageBox.dispatchEvent(new Event("input"));
@@ -383,6 +491,8 @@
     ShareReceiver.addListener("shareReceived", handleShared);
     ShareReceiver.getPending().then(handleShared).catch(() => {});
   }
+
+  Auth.init();
 
   renderHistory();
 })();

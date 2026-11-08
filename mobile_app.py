@@ -7,6 +7,7 @@ import pytesseract
 from PIL import Image, UnidentifiedImageError
 
 from experiment_v10 import scan_message
+from streamlit_auth import account_box, require_sign_in
 
 
 # ==========================================
@@ -101,6 +102,13 @@ textarea {
 }
 </style>
 """, unsafe_allow_html=True)
+
+
+# ==========================================
+# SIGN-IN (Clerk) - only when configured
+# ==========================================
+
+require_sign_in()
 
 
 # ==========================================
@@ -735,6 +743,8 @@ with history_tab:
 with info_tab:
 
     st.subheader("About ScamShield AI")
+
+    account_box()
 
     st.write(
         "**Version:** Experiment 10"

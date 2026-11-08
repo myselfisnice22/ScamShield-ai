@@ -14,4 +14,10 @@ window.SCAMSHIELD_CONFIG = {
   defaultApiUrl: "http://localhost:8000",
   requestTimeoutMs: 45000,
   maxHistory: 20,
+
+  // Clerk sign-in. Leave "" to run without sign-in.
+  // Paste your Clerk PUBLISHABLE key (starts with pk_test_ or pk_live_).
+  // The publishable key is safe to put in the app. NEVER put the Clerk
+  // SECRET key (sk_...) in the app or on GitHub.
+  clerkPublishableKey: "",
 };

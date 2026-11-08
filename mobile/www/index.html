@@ -6,7 +6,9 @@
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#0E1117">
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self'; img-src 'self' data: blob:; connect-src *; object-src 'none'; base-uri 'none'">
+        content="default-src 'self'; script-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev https://*.clerk.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://img.clerk.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; connect-src *; object-src 'none'; base-uri 'none'">
+  <!-- If you use a Clerk PRODUCTION instance with your own domain (e.g. clerk.yourdomain.com),
+       add that domain to script-src above. -->
   <title>ScamShield AI</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -17,6 +19,15 @@
   </header>
 
   <main id="screens">
+    <!-- ============ SIGN IN (only when Clerk is configured) ============ -->
+    <section class="screen" id="screen-signin" aria-labelledby="t-signin">
+      <h1 id="t-signin">🔐 Sign in</h1>
+      <p class="muted">Sign in to use ScamShield. Sign-in is handled securely by Clerk —
+        ScamShield never sees your password.</p>
+      <div id="clerk-signin" class="clerk-box"></div>
+      <p id="signin-status" class="caption"></p>
+    </section>
+
     <!-- ============ SCAN ============ -->
     <section class="screen active" id="screen-scan" aria-labelledby="t-scan">
       <h1 id="t-scan">Scan a message</h1>
@@ -114,6 +125,11 @@
         <button class="btn ghost small" id="test-api" type="button">Test connection</button>
       </div>
       <p id="api-status" class="caption"></p>
+      <div class="card hidden" id="account-card">
+        <h2>Account</h2>
+        <p class="muted" id="account-name"></p>
+        <button class="btn ghost small" id="sign-out" type="button">🚪 Sign out</button>
+      </div>
       <div class="card">
         <h2>Privacy</h2>
         <p class="muted">Messages and screenshots are sent to the ScamShield server for checking.

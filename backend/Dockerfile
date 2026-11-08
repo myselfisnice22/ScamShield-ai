@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 COPY AI_Model.py evaluate_scams.py experiment_v3.py experiment_v4.py \
      experiment_v7.py experiment_v8.py experiment_v9.py \
      experiment_v10.py experiment_v10_data.py ./
-COPY backend/__init__.py backend/api.py backend/
+COPY backend/__init__.py backend/api.py backend/clerk_auth.py backend/
 
 # Run as a normal user, not root.
 RUN useradd --create-home scamshield

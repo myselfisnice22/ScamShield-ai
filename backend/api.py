@@ -14,6 +14,10 @@ PRIVACY
 * Messages and screenshots are processed in memory and NEVER saved.
 * The server does not log message text (only that a request happened).
 * History is kept on the phone, not on the server.
+
+SIGN-IN
+-------
+Set CLERK_ISSUER to require Clerk sign-in (see backend/clerk_auth.py).
 """
 
 import os
@@ -23,7 +27,7 @@ from collections import defaultdict, deque
 from io import BytesIO
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -37,6 +41,8 @@ import io  # noqa: E402
 
 with contextlib.redirect_stdout(io.StringIO()):  # hide "model loaded" prints
     from experiment_v10 import VERSION, scan_message  # noqa: E402
+
+from backend import clerk_auth  # noqa: E402
 
 MAX_MESSAGE_CHARS = 5000
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
@@ -62,7 +68,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=DEFAULT_ORIGINS + EXTRA_ORIGINS,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 
@@ -73,8 +79,9 @@ app.add_middleware(
 _recent_requests = defaultdict(deque)
 
 
-def check_rate_limit(request: Request):
-    client = request.client.host if request.client else "unknown"
+def check_rate_limit(request: Request, user_id=None):
+    # Signed-in users are limited per account, others per IP address.
+    client = ("user:" + user_id) if user_id else (request.client.host if request.client else "unknown")
     now = time.monotonic()
     window = _recent_requests[client]
     while window and now - window[0] > 60:
@@ -115,12 +122,12 @@ class ScanRequest(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": VERSION}
+    return {"status": "ok", "version": VERSION, "sign_in_required": clerk_auth.settings.enabled}
 
 
 @app.post("/scan")
-def scan_text(body: ScanRequest, request: Request):
-    check_rate_limit(request)
+def scan_text(body: ScanRequest, request: Request, user_id=Depends(clerk_auth.current_user)):
+    check_rate_limit(request, user_id)
     try:
         report = scan_message(body.message)
     except ValueError as error:
@@ -129,8 +136,9 @@ def scan_text(body: ScanRequest, request: Request):
 
 
 @app.post("/scan-image")
-async def scan_image(request: Request, file: UploadFile = File(...)):
-    check_rate_limit(request)
+async def scan_image(request: Request, file: UploadFile = File(...),
+                     user_id=Depends(clerk_auth.current_user)):
+    check_rate_limit(request, user_id)
 
     # Imported here so the text API still works if OCR is not installed.
     import pytesseract

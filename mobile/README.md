@@ -119,6 +119,10 @@ accounts (Google Play: one-off fee; Apple: yearly fee) and accept the agreements
 - [ ] Upload the `.aab` to Google Play Console → **internal testing** first, then production
 - [ ] Version number bumped (`android/app/build.gradle`: `versionCode`, `versionName`)
 
+## Sign-in (optional)
+
+To require sign-in with Clerk, see `CLERK_SETUP.md` in the repository root.
+
 ## Files
 
 | Path | What it is |
