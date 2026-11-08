@@ -7,6 +7,17 @@ app work exactly as before.
 > keys. Signing users in means ScamShield now handles names and email addresses, so the
 > privacy policy (`mobile/PRIVACY.md`) must say so.
 
+This setup follows Clerk's official guides:
+- Phone app: the [JavaScript quickstart](https://clerk.com/docs/js-frontend/getting-started/quickstart) "script tag" option.
+  It loads `@clerk/ui@1` (the sign-in box), then `@clerk/clerk-js@6`, and calls
+  `Clerk.load({ ui: { ClerkUI: window.__internal_ClerkUICtor } })`.
+- Backend API: [manual JWT verification](https://clerk.com/docs/guides/sessions/manual-jwt-verification).
+  It checks the RS256 signature with your JWKS, `exp`/`nbf`, `azp` against your allowed apps,
+  and rejects `sts: "pending"` sessions.
+- Clerk's setup tool (`npx clerk@latest init`) does not support Python/Streamlit or a
+  plain-JavaScript Capacitor app, and Clerk says not to run `init` in a project that
+  already uses Clerk. So the pieces were added by hand instead.
+
 ## The three parts
 
 | Part | How sign-in works | Where the settings go |

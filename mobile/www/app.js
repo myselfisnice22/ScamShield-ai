@@ -101,17 +101,26 @@
       } catch (e) { return null; }
     },
 
-    loadScript(key, domain) {
+    // Official Clerk "script tag" setup: load the UI bundle FIRST, then
+    // ClerkJS, then pass the UI to Clerk.load(). (In Clerk v6 the sign-in box
+    // lives in the separate @clerk/ui bundle.)
+    addScript(src, attributes) {
       return new Promise((resolve, reject) => {
         const script = document.createElement("script");
-        script.src = "https://" + domain + "/npm/@clerk/clerk-js@6/dist/clerk.browser.js";
+        script.src = src;
         script.async = true;
         script.crossOrigin = "anonymous";
-        script.setAttribute("data-clerk-publishable-key", key);
+        Object.entries(attributes || {}).forEach(([name, value]) => script.setAttribute(name, value));
         script.onload = resolve;
         script.onerror = () => reject(new Error("Couldn't load the sign-in service. Check your internet connection."));
         document.head.appendChild(script);
       });
+    },
+
+    async loadScripts(key, domain) {
+      await this.addScript("https://" + domain + "/npm/@clerk/ui@1/dist/ui.browser.js");
+      await this.addScript("https://" + domain + "/npm/@clerk/clerk-js@6/dist/clerk.browser.js",
+        { "data-clerk-publishable-key": key });
     },
 
     async init() {
@@ -123,8 +132,8 @@
       const domain = this.frontendApi(key);
       if (!domain) { $("signin-status").textContent = "⚠️ The Clerk publishable key in config.js looks wrong."; return; }
       try {
-        await this.loadScript(key, domain);
-        await this.clerk().load();
+        await this.loadScripts(key, domain);
+        await this.clerk().load({ ui: { ClerkUI: window.__internal_ClerkUICtor } });
       } catch (e) {
         $("signin-status").textContent = "⚠️ " + (e.message || "Sign-in failed to load.");
         return;

@@ -9,6 +9,10 @@ This file checks that token, in Python:
   1. It was signed by YOUR Clerk instance (checked with Clerk's public keys).
   2. It has not expired.
   3. It came from one of YOUR apps (the "azp" / authorized party check).
+  4. The session is not "pending" (the "sts" claim).
+
+This follows Clerk's manual JWT verification guide:
+https://clerk.com/docs/guides/sessions/manual-jwt-verification
 
 Settings (environment variables on the server):
     CLERK_ISSUER               e.g. https://your-app.clerk.accounts.dev
@@ -71,6 +75,11 @@ def verify_token(token):
         raise HTTPException(status_code=401, detail="Your sign-in has expired. Please sign in again.")
     except (jwt.PyJWTError, jwt.PyJWKClientError, ValueError):
         raise HTTPException(status_code=401, detail="Please sign in to use ScamShield.")
+
+    # A "pending" session means the user has not finished a required step
+    # (e.g. joining an Organization). Clerk recommends rejecting these.
+    if claims.get("sts") == "pending":
+        raise HTTPException(status_code=401, detail="Please finish signing up to use ScamShield.")
 
     party = claims.get("azp")
     if settings.authorized_parties and party and party not in settings.authorized_parties:

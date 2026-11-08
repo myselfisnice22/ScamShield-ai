@@ -88,6 +88,10 @@ class TestClerkEnabled(unittest.TestCase):
     def test_wrong_authorized_party_is_rejected(self):
         self.assertEqual(self.scan(make_token(azp="https://evil.example")).status_code, 401)
 
+    def test_pending_session_is_rejected(self):
+        self.assertEqual(self.scan(make_token(sts="pending")).status_code, 401)
+        self.assertEqual(self.scan(make_token(sts="active")).status_code, 200)
+
     def test_token_without_user_is_rejected(self):
         self.assertEqual(self.scan(make_token(sub=None)).status_code, 401)
 
