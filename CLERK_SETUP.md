@@ -98,3 +98,37 @@ python -m unittest test_streamlit_auth -v
 ```
 
 These tests use their own fake keys and need no Clerk account.
+
+## Troubleshooting: "I sign in on Clerk but come back logged out"
+
+Sign-in happens in three steps, and Streamlit silently discards the result if
+step 2 or 3 fails:
+
+1. ScamShield → Clerk (you see Clerk's page)
+2. Clerk → `/oauth2callback`: Streamlit matches the result to a "sign-in in
+   progress" cookie
+3. Streamlit checks Clerk's ID token, then saves a signed cookie for 30 days
+
+| Cause | What ScamShield now does |
+|---|---|
+| Opened at `127.0.0.1:8501` or the "Network URL" instead of `localhost:8501`. Browsers keep cookies separately per address, so step 2 can't find the cookie. **The most common cause.** | Shows a warning and a button to the right address instead of a sign-in that would fail |
+| Sign-in interrupted (Back button, created an account in the middle) | Shows "The sign-in was interrupted…". Sign in again. |
+| Computer clock wrong, so Clerk's token looks expired | Shows the reason and how to sync the Windows clock |
+| Clerk OAuth app missing the `openid` scope | Shows which scopes to add |
+| Wrong Client ID/Secret, or the network is blocked | Shows the reason and suggests running `python check_clerk_setup.py` |
+
+Detailed reasons are shown only when running on your own computer. Hosted apps
+show a general message.
+
+**Session length:** Clerk's free plan ends sessions after 7 days, but
+Streamlit's cookie lasts 30. ScamShield asks you to sign in again after 7 days.
+
+**Tests:**
+
+```bash
+python -m unittest test_streamlit_auth test_clerk_login_flow -v
+```
+
+`test_clerk_login_flow` starts the real app and a fake Clerk (`clerk_mock_server.py`)
+and checks login, refresh, logout, expired tokens, replayed callbacks and the
+127.0.0.1 problem. It uses a temporary secrets file, never your real one.

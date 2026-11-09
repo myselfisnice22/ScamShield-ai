@@ -404,6 +404,7 @@ MODE = sys.argv[1]
 if MODE == "app":
     from streamlit.testing.v1 import AppTest
     app = AppTest.from_file("mobile_app.py", default_timeout=60)
+    app.secrets["scamshield_test"] = "no sign-in"  # never read the real secrets.toml
     app.run()
     print("APP_ERRORS", len(app.exception))
 else:
@@ -455,6 +456,9 @@ class TestStreamlitApp(unittest.TestCase):
     def run_app(self):
         from streamlit.testing.v1 import AppTest
         app = AppTest.from_file("mobile_app.py", default_timeout=60)
+        # A non-empty secrets dict REPLACES .streamlit/secrets.toml, so these
+        # tests never read your real Clerk keys and never require sign-in.
+        app.secrets["scamshield_test"] = "no sign-in"
         app.run()
         self.assertFalse(app.exception)
         return app
