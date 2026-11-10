@@ -138,6 +138,19 @@ def prompt_problem():
     return str(prompt).strip() not in CLERK_PROMPTS
 
 
+def missing_sign_in_library():
+    """Name of a library st.login needs but can't load (None when all is fine).
+
+    Without these the SIGN IN button leads to "Internal server error".
+    """
+    for module in ("authlib", "httpx"):
+        try:
+            __import__(module)
+        except Exception:
+            return module
+    return None
+
+
 def _redirect_uri():
     try:
         return str(st.secrets["auth"]["redirect_uri"])
@@ -334,6 +347,15 @@ def require_sign_in():
         st.stop()
 
     local = _is_local(urlsplit(redirect_uri).hostname or "")
+    missing = missing_sign_in_library()
+    if missing:
+        st.error(
+            f"Sign-in isn't available: this server is missing the '{missing}' library.\n\n"
+            f"**Fix:** add `{missing}` to requirements.txt (and on your own computer run "
+            "`python -m pip install -r requirements.txt`), then restart ScamShield."
+        )
+        st.stop()
+
     if prompt_problem():
         problem, fix = FAILURE_HELP["prompt" if local else "unknown"]
         st.error(f"Sign-in can't work yet: {problem}\n\n**Fix:** {fix}")

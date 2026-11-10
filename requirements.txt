@@ -1,5 +1,7 @@
 streamlit>=1.42
 Pillow
 Pytesseract
-# Needed by st.login (Clerk sign-in)
+# Needed by st.login (Clerk sign-in). Authlib uses httpx to talk to Clerk;
+# without it the SIGN IN button gives "Internal server error".
 Authlib>=1.3.2
+httpx>=0.27
