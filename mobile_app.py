@@ -8,6 +8,7 @@ from ocr_engine import OCRError, read_text
 
 from experiment_v10 import scan_message
 from streamlit_auth import account_settings, require_sign_in
+import device
 import ui_theme as ui
 
 
@@ -40,7 +41,7 @@ ui.apply_theme("mobile")
 # SIGN-IN (Clerk) - only when configured
 # ==========================================
 
-require_sign_in()
+require_sign_in(footer=lambda: device.switch_view_button("phone"))
 
 
 # ==========================================
@@ -572,6 +573,13 @@ with settings_tab:
 
     account_settings(clear_app_data=clear_my_data)
 
+    if device.routed():
+        st.divider()
+        st.subheader("🖥️ Version")
+        st.caption("ScamShield picks the phone or desktop version for your device. "
+                   "You can switch any time.")
+        device.switch_view_button("phone", where="settings")
+
 
 # ==========================================
 # INFO
@@ -638,3 +646,5 @@ with info_tab:
 ui.html(ui.footer(
     "Experiment 10 · A low-risk result never guarantees safety."
 ))
+
+device.switch_view_button("phone")

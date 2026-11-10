@@ -14,6 +14,7 @@ from io import BytesIO
 import streamlit as st
 from PIL import Image, UnidentifiedImageError
 
+import device
 import streamlit_auth as auth
 import ui_theme as ui
 from experiment_v10 import scan_message
@@ -159,6 +160,12 @@ FOOTER_NOTE = ("ScamShield gives guidance, not guarantees. If in doubt, contact 
 
 def page_footer():
     ui.html(ui.footer(FOOTER_NOTE))
+    device.switch_view_button("web")
+
+
+def _footer_in(container):
+    with container:
+        page_footer()
 
 
 def sign_in_gate():
@@ -169,7 +176,7 @@ def sign_in_gate():
         auth.require_sign_in(
             header=lambda: ui.html('<p class="ss-eyebrow" style="text-align:center">'
                                    "Free · Messages are never stored</p>"),
-            footer=lambda: bottom.markdown(ui.footer(FOOTER_NOTE), unsafe_allow_html=True),
+            footer=lambda: _footer_in(bottom),
         )
 
 
