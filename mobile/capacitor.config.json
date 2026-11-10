@@ -1,0 +1,9 @@
+{
+  "appId": "com.scamshieldai.app",
+  "appName": "ScamShield AI",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  },
+  "backgroundColor": "#0E1117"
+}

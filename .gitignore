@@ -6,3 +6,5 @@ venv/
 .env.*
 .streamlit/secrets.toml
 *.log
+# Clerk CLI private files (claim/link data) - never commit
+.clerk/

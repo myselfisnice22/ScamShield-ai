@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ScamShield AI</string>
+    <string name="title_activity_main">ScamShield AI</string>
+    <string name="package_name">com.scamshieldai.app</string>
+    <string name="custom_url_scheme">com.scamshieldai.app</string>
+    <string name="share_label">Check with ScamShield</string>
+</resources>

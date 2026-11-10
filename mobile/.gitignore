@@ -1,0 +1,6 @@
+node_modules/
+www/vendor/
+# Signing keys must NEVER be committed
+*.jks
+*.keystore
+keystore.properties

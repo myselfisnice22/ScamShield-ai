@@ -1,12 +1,13 @@
 import hashlib
-import os
 from io import BytesIO
 
 import streamlit as st
-import pytesseract
 from PIL import Image, UnidentifiedImageError
 
+from ocr_engine import OCRError, read_text
+
 from experiment_v10 import scan_message
+from streamlit_auth import account_settings, require_sign_in
 
 
 # ==========================================
@@ -21,16 +22,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Windows uses a local Tesseract installation.
-# Streamlit Cloud uses the system installation.
-windows_tesseract = (
-    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-)
-
-if os.path.isfile(windows_tesseract):
-    pytesseract.pytesseract.tesseract_cmd = (
-        windows_tesseract
-    )
+# Screenshot reading (Tesseract OCR) is loaded only when needed, by
+# ocr_engine.py. It finds the Windows installation automatically and keeps
+# working even if Windows blocks the optional "pandas" library.
 
 
 # ==========================================
@@ -104,6 +98,13 @@ textarea {
 
 
 # ==========================================
+# SIGN-IN (Clerk) - only when configured
+# ==========================================
+
+require_sign_in()
+
+
+# ==========================================
 # SESSION STATE
 # ==========================================
 
@@ -112,7 +113,9 @@ defaults = {
     "history": [],
     "keep_history": False,
     "ocr_review_text": "",
-    "ocr_source_id": None
+    "ocr_source_id": None,
+    "ocr_error": None,
+    "screenshot_report": None
 }
 
 for key, value in defaults.items():
@@ -126,15 +129,64 @@ def changed_history_preference():
 
 
 # ==========================================
+# VERDICT BANNER (shared by Results tab and
+# the instant screenshot answer)
+# ==========================================
+
+def show_verdict_banner(risk):
+    risk = str(risk)
+
+    if risk.upper().startswith("HIGH"):
+
+        st.error(
+            "🚨 HIGH RISK — POSSIBLE SCAM\n\n"
+            "Strong scam indicators were detected. "
+            "Do not reply, click suspicious links, "
+            "or share personal information."
+        )
+
+    elif risk.upper().startswith(
+        "NEEDS REVIEW - AI MODEL ONLY"
+    ):
+
+        st.warning(
+            "⚠️ NEEDS REVIEW — AI MODEL ONLY\n\n"
+            "Only the AI model flagged this message. "
+            "No security rule found scam behaviour "
+            "(such as password requests, fees, or "
+            "changed bank details). Check who sent "
+            "it before acting."
+        )
+
+    elif risk.upper().startswith("NEEDS"):
+
+        st.warning(
+            "⚠️ NEEDS REVIEW\n\n"
+            "ScamShield found warning signs. "
+            "Verify the message through an "
+            "official channel."
+        )
+
+    else:
+
+        st.info(
+            "ℹ️ NO KNOWN SCAM PATTERN DETECTED\n\n"
+            "No strong pattern was detected. "
+            "This does not prove the message "
+            "is legitimate."
+        )
+
+
+# ==========================================
 # SCAN FUNCTION
 # ==========================================
 
-def run_scan(message):
+def run_scan(message, announce=True):
     message = message.strip()
 
     if not message:
         st.warning("Please enter a message first.")
-        return
+        return None
 
     try:
         with st.spinner("ScamShield is analyzing..."):
@@ -142,14 +194,14 @@ def run_scan(message):
 
     except ValueError as error:
         st.error(str(error))
-        return
+        return None
 
     except Exception:
         st.error(
             "The scanner encountered an error. "
             "Check your VS Code terminal."
         )
-        return
+        return None
 
     st.session_state.latest_report = report
 
@@ -170,7 +222,29 @@ def run_scan(message):
             st.session_state.history[:20]
         )
 
-    st.success("Scan complete! Check Results below.")
+    if announce:
+        st.success("Scan complete! Check Results below.")
+
+    return report
+
+
+def read_screenshot(image):
+    """Run Tesseract OCR. Returns (text, error_message)."""
+    try:
+        text = read_text(image, timeout=20)
+
+    except OCRError as error:
+        return "", str(error)
+
+    text = text[:5000].strip()
+
+    if not text:
+        return "", (
+            "No readable text was found. "
+            "Try a clearer screenshot."
+        )
+
+    return text, None
 
 
 # ==========================================
@@ -244,8 +318,8 @@ with screenshot_tab:
 
     st.write(
         "Upload a screenshot of a suspicious "
-        "message. ScamShield will extract the "
-        "text and analyze it."
+        "message. ScamShield reads the text and "
+        "gives you an answer straight away."
     )
 
     st.caption(
@@ -268,9 +342,7 @@ with screenshot_tab:
             image_bytes
         ).hexdigest()
 
-        if st.session_state.ocr_source_id != source_id:
-            st.session_state.ocr_source_id = source_id
-            st.session_state.ocr_review_text = ""
+        image = None
 
         if len(image_bytes) > 5 * 1024 * 1024:
 
@@ -297,58 +369,6 @@ with screenshot_tab:
 
                     image = uploaded.convert("RGB")
 
-                st.image(
-                    image,
-                    caption="Uploaded screenshot",
-                    use_container_width=True
-                )
-
-                if st.button(
-                    "📖 EXTRACT TEXT",
-                    use_container_width=True
-                ):
-
-                    try:
-                        with st.spinner(
-                            "Reading screenshot..."
-                        ):
-
-                            extracted_text = (
-                                pytesseract.image_to_string(
-                                    image,
-                                    timeout=20
-                                )
-                            )
-
-                        st.session_state.ocr_review_text = (
-                            extracted_text[:5000].strip()
-                        )
-
-                        if not extracted_text.strip():
-                            st.warning(
-                                "No readable text was found. "
-                                "Try a clearer screenshot."
-                            )
-
-                    except (
-                        pytesseract.TesseractNotFoundError
-                    ):
-                        st.error(
-                            "Tesseract OCR was not found. "
-                            "Check its installation."
-                        )
-
-                    except RuntimeError:
-                        st.error(
-                            "Text extraction timed out. "
-                            "Try a smaller screenshot."
-                        )
-
-                    except Exception:
-                        st.error(
-                            "Could not read the screenshot."
-                        )
-
             except (
                 UnidentifiedImageError,
                 OSError,
@@ -357,39 +377,104 @@ with screenshot_tab:
             ) as error:
                 st.error(f"Image error: {error}")
 
-        if st.session_state.ocr_review_text:
+        # A NEW screenshot: read it and analyse it
+        # automatically. This runs only once per
+        # image, not every time the page refreshes.
+        if (
+            image is not None
+            and st.session_state.ocr_source_id
+            != source_id
+        ):
+            st.session_state.ocr_source_id = source_id
+            st.session_state.screenshot_report = None
 
-            st.success("Text extracted successfully!")
-
-            st.info(
-                "Review the text and correct any "
-                "OCR mistakes before scanning."
-            )
-
-            st.text_area(
-                "Extracted message",
-                key="ocr_review_text",
-                height=200,
-                max_chars=5000
-            )
-
-            if st.button(
-                "🛡️ SCAN SCREENSHOT TEXT",
-                type="primary",
-                use_container_width=True
+            with st.spinner(
+                "Reading and analysing screenshot..."
             ):
-                run_scan(
-                    st.session_state.ocr_review_text
+                text, error = read_screenshot(image)
+
+            st.session_state.ocr_review_text = text
+            st.session_state.ocr_error = error
+
+            if text:
+                st.session_state.screenshot_report = (
+                    run_scan(text, announce=False)
                 )
+
+        if image is not None:
+
+            if st.session_state.ocr_error:
+                st.warning(st.session_state.ocr_error)
+
+            report = st.session_state.screenshot_report
+
+            if report is not None:
+
+                st.subheader("🛡️ Instant Answer")
+
+                show_verdict_banner(report["risk"])
+
+                st.caption(
+                    "Verdict source: "
+                    + str(report.get(
+                        "verdict_source_label", ""
+                    ))
+                    + " | "
+                    + f"{len(report.get('warnings', []))}"
+                    + " warning sign(s)"
+                )
+
+                st.info(
+                    "Open the 🔍 Results tab below for "
+                    "the full explanation."
+                )
+
+            with st.expander("🖼️ View screenshot"):
+                st.image(
+                    image,
+                    caption="Uploaded screenshot",
+                    use_container_width=True
+                )
+
+            if st.session_state.ocr_review_text:
+
+                with st.expander(
+                    "✏️ Check the text ScamShield read"
+                ):
+
+                    st.caption(
+                        "OCR can misread letters. Fix any "
+                        "mistakes, then scan again."
+                    )
+
+                    st.text_area(
+                        "Extracted message",
+                        key="ocr_review_text",
+                        height=200,
+                        max_chars=5000
+                    )
+
+                    if st.button(
+                        "🔁 SCAN CORRECTED TEXT",
+                        use_container_width=True
+                    ):
+                        st.session_state.screenshot_report = (
+                            run_scan(
+                                st.session_state.ocr_review_text,
+                                announce=False
+                            )
+                        )
+                        st.rerun()
 
 
 # ==========================================
 # RESULTS / HISTORY / INFO TABS
 # ==========================================
 
-results_tab, history_tab, info_tab = st.tabs([
+results_tab, history_tab, settings_tab, info_tab = st.tabs([
     "🔍 Results",
     "🕘 History",
+    "⚙️ Settings",
     "ℹ️ Info"
 ])
 
@@ -434,45 +519,7 @@ with results_tab:
 
         st.subheader("🛡️ ScamShield Verdict")
 
-        if risk.upper().startswith("HIGH"):
-
-            st.error(
-                "🚨 HIGH RISK — POSSIBLE SCAM\n\n"
-                "Strong scam indicators were detected. "
-                "Do not reply, click suspicious links, "
-                "or share personal information."
-            )
-
-        elif risk.upper().startswith(
-            "NEEDS REVIEW - AI MODEL ONLY"
-        ):
-
-            st.warning(
-                "⚠️ NEEDS REVIEW — AI MODEL ONLY\n\n"
-                "Only the AI model flagged this message. "
-                "No security rule found scam behaviour "
-                "(such as password requests, fees, or "
-                "changed bank details). Check who sent "
-                "it before acting."
-            )
-
-        elif risk.upper().startswith("NEEDS"):
-
-            st.warning(
-                "⚠️ NEEDS REVIEW\n\n"
-                "ScamShield found warning signs. "
-                "Verify the message through an "
-                "official channel."
-            )
-
-        else:
-
-            st.info(
-                "ℹ️ NO KNOWN SCAM PATTERN DETECTED\n\n"
-                "No strong pattern was detected. "
-                "This does not prove the message "
-                "is legitimate."
-            )
+        show_verdict_banner(risk)
 
         st.caption(
             "Final assessment: " + risk
@@ -666,6 +713,22 @@ with history_tab:
     else:
 
         st.info("No saved scans.")
+
+
+# ==========================================
+# SETTINGS (account: sign out / delete)
+# ==========================================
+
+def clear_my_data():
+    """Wipe everything ScamShield keeps for this user in the session."""
+    st.session_state.history = []
+    st.session_state.latest_report = None
+    st.session_state.screenshot_report = None
+
+
+with settings_tab:
+
+    account_settings(clear_app_data=clear_my_data)
 
 
 # ==========================================
