@@ -86,6 +86,12 @@ FAILURE_HELP = {
         "The redirect_uri in secrets.toml is set up wrongly.",
         "It must be http://localhost:8501/oauth2callback for local testing.",
     ),
+    "prompt": (
+        "Clerk refused the sign-in request because of its 'prompt' setting.",
+        "Streamlit asks for prompt=select_account, which Clerk doesn't support. In secrets.toml, "
+        "under [auth.clerk], use: client_kwargs = { scope = \"openid profile email\", prompt = \"\" } "
+        "and restart ScamShield.",
+    ),
     "unknown": (
         "The sign-in didn't complete.",
         "Try again. If it keeps happening, copy the WARNING lines from the terminal.",
@@ -114,6 +120,24 @@ def clerk_configured():
         auth.get("redirect_uri")) and bool(auth.get("cookie_secret"))
 
 
+# "prompt" values Clerk accepts ("" means: don't ask for anything special).
+# Streamlit 1.66+ sends prompt=select_account unless client_kwargs sets a
+# prompt, and Clerk rejects that AFTER the user has typed their password.
+CLERK_PROMPTS = ("", "login", "consent", "none")
+
+
+def prompt_problem():
+    """True when the Clerk settings would make Streamlit send a prompt Clerk rejects."""
+    try:
+        kwargs = st.secrets["auth"][PROVIDER].get("client_kwargs") or {}
+        prompt = kwargs.get("prompt")
+    except Exception:
+        return False
+    if prompt is None:
+        return True
+    return str(prompt).strip() not in CLERK_PROMPTS
+
+
 def _redirect_uri():
     try:
         return str(st.secrets["auth"]["redirect_uri"])
@@ -128,6 +152,8 @@ def _redirect_uri():
 def classify_failure(text):
     """Turn a Streamlit sign-in warning into one of the FAILURE_HELP categories."""
     t = text.lower()
+    if "prompt parameter" in t or "select_account" in t:
+        return "prompt"
     if "missing provider" in t or "mismatching_state" in t or "csrf" in t:
         return "interrupted"
     if "access_denied" in t:
@@ -252,11 +278,20 @@ def session_expired(user, now=None, max_age=MAX_SESSION_SECONDS):
 # What the app calls
 # ==========================================
 
-def is_signed_in():
+def _current_user():
+    """The signed-in user's details as a plain dict (empty if unavailable)."""
     try:
-        return bool(st.user.is_logged_in)
+        return dict(st.user)
     except Exception:
-        return False
+        return {}
+
+
+def _sign_out():
+    st.logout()
+
+
+def is_signed_in():
+    return bool(_current_user().get("is_logged_in"))
 
 
 def _show_header():
@@ -275,12 +310,12 @@ def require_sign_in():
     recorder = failure_recorder()
 
     if is_signed_in():
-        if not session_expired(st.user):
+        if not session_expired(_current_user()):
             return
         _show_header()
         st.subheader("⏰ Your session has expired")
         st.write("For your security, please sign in again (sessions last 7 days).")
-        st.button("🔐 SIGN IN AGAIN", type="primary", use_container_width=True, on_click=st.logout)
+        st.button("🔐 SIGN IN AGAIN", type="primary", use_container_width=True, on_click=_sign_out)
         st.stop()
 
     _show_header()
@@ -298,9 +333,14 @@ def require_sign_in():
                        type="primary", use_container_width=True)
         st.stop()
 
+    local = _is_local(urlsplit(redirect_uri).hostname or "")
+    if prompt_problem():
+        problem, fix = FAILURE_HELP["prompt" if local else "unknown"]
+        st.error(f"Sign-in can't work yet: {problem}\n\n**Fix:** {fix}")
+        st.stop()
+
     failure = recorder.recent_failure()
     if failure:
-        local = _is_local(urlsplit(redirect_uri).hostname or "")
         problem, fix = FAILURE_HELP[failure if local else "unknown"]
         st.error(f"Sign-in didn't complete: {problem}\n\n**Fix:** {fix}")
 
@@ -322,13 +362,113 @@ def require_sign_in():
     st.stop()
 
 
-def account_box():
-    """Small 'signed in as ... / sign out' section for the Info tab."""
+# ==========================================
+# Deleting an account (Clerk Backend API)
+# ==========================================
+
+CLERK_API = "https://api.clerk.com/v1"
+DELETE_WORD = "DELETE"
+
+DELETE_HELP = {
+    "bad_user": "ScamShield couldn't tell which Clerk account you're signed in with. Sign out, "
+                "sign in again, and try once more.",
+    "key": "Clerk refused the request: the Secret key in secrets.toml ([clerk_admin] secret_key) "
+           "is wrong or belongs to a different Clerk app.",
+    "network": "ScamShield couldn't reach Clerk. Check your internet connection and try again.",
+    "unknown": "Clerk couldn't delete the account right now. Nothing was deleted. Try again later.",
+}
+
+
+def _admin_secret_key():
+    """Clerk's Secret key (sk_...), needed only for deleting accounts."""
+    try:
+        return str(st.secrets["clerk_admin"]["secret_key"]).strip()
+    except Exception:
+        return ""
+
+
+def delete_clerk_user(user_id, secret_key, opener=None):
+    """Permanently delete a Clerk user. Returns (deleted, problem_category)."""
+    import re
+    import urllib.error
+    import urllib.request
+
+    if not re.fullmatch(r"user_[A-Za-z0-9]+", str(user_id or "")):
+        return False, "bad_user"
+    request = urllib.request.Request(
+        f"{CLERK_API}/users/{user_id}", method="DELETE",
+        headers={"Authorization": f"Bearer {secret_key}", "User-Agent": "ScamShield"})
+    try:
+        with (opener or urllib.request.urlopen)(request, timeout=20):
+            return True, None
+    except urllib.error.HTTPError as error:
+        if error.code == 404:  # already gone: treat as deleted
+            return True, None
+        if error.code in (401, 403):
+            return False, "key"
+        return False, "unknown"
+    except Exception:
+        return False, "network"
+
+
+def account_settings(clear_app_data=None):
+    """Settings tab: who is signed in, sign out, and delete account.
+
+    clear_app_data: called after a successful delete, before signing out,
+    so the app can wipe anything it keeps for this user (e.g. scan history).
+    """
+    st.subheader("👤 Account")
     if not clerk_configured():
         st.write("**Sign-in:** not enabled on this server.")
         return
     if not is_signed_in():
         return
-    name = st.user.get("name") or st.user.get("email") or "your account"
+
+    user = _current_user()
+    name = user.get("name") or user.get("email") or "your account"
     st.write(f"**Signed in as:** {name}")
-    st.button("🚪 Sign out", on_click=st.logout, use_container_width=True)
+    if user.get("email") and user.get("email") != name:
+        st.caption(user["email"])
+    st.button("🚪 Sign out", on_click=_sign_out, use_container_width=True)
+
+    st.divider()
+    st.subheader("🗑️ Delete account")
+    st.write(
+        "This permanently deletes your ScamShield sign-in account and clears the scan "
+        "history on this device. **It can't be undone.**"
+    )
+
+    secret_key = _admin_secret_key()
+    if not secret_key:
+        if _is_local(urlsplit(_redirect_uri()).hostname or ""):
+            st.info(
+                "Account deletion isn't switched on yet. In the Clerk dashboard open "
+                "**Configure > API keys**, copy the **Secret key** (starts with sk_), and add "
+                "to .streamlit/secrets.toml:\n\n"
+                "```\n[clerk_admin]\nsecret_key = \"sk_test_...\"\n```\n\n"
+                "Then restart ScamShield."
+            )
+        else:
+            st.info("Account deletion isn't available on this server yet. "
+                    "Please contact the person who runs this ScamShield site.")
+        return
+
+    understood = st.checkbox("I understand my account will be deleted permanently",
+                             key="delete_account_understood")
+    typed = st.text_input(f"Type {DELETE_WORD} to confirm", key="delete_account_typed")
+    ready = understood and typed.strip() == DELETE_WORD
+    if st.button("🗑️ DELETE MY ACCOUNT", type="primary", disabled=not ready,
+                 use_container_width=True):
+        deleted, problem = delete_clerk_user(user.get("sub"), secret_key)
+        if not deleted:
+            st.error(f"Your account was not deleted. {DELETE_HELP[problem]}")
+            return
+        if clear_app_data:
+            clear_app_data()
+        st.success("Your account has been deleted. Signing you out…")
+        _sign_out()
+
+
+def account_box():
+    """Kept for older callers: same as the Settings tab's account section."""
+    account_settings()

@@ -83,6 +83,16 @@ def main():
     if problems:
         return 1
 
+    kwargs = clerk.get("client_kwargs") or {}
+    prompt = kwargs.get("prompt") if isinstance(kwargs, dict) else None
+    if prompt is None or str(prompt).strip() not in ("", "login", "consent", "none"):
+        bad("client_kwargs has no Clerk-compatible prompt setting. Streamlit would ask Clerk for "
+            "prompt=select_account, which Clerk rejects after you sign in (you land back on the "
+            "sign-in page).",
+            'Under [auth.clerk] use: client_kwargs = { scope = "openid profile email", prompt = "" }')
+    else:
+        ok("client_kwargs prompt setting works with Clerk")
+
     # ------------------------------------------------------------------
     step("2. Security libraries (Windows can block these)")
     try:
@@ -157,7 +167,30 @@ def main():
         print(f"  [?]    Unexpected answer from Clerk (HTTP {response.status_code}, '{error_code}').")
 
     # ------------------------------------------------------------------
-    step("6. Things to check in the Clerk dashboard (can't be tested from here)")
+    step("5b. Delete-account Secret key (optional)")
+    secret_key = str((config.get("clerk_admin") or {}).get("secret_key", "")).strip()
+    if not secret_key:
+        print("  [--]   Not set up: users can sign out but not delete their account.")
+        print("         To enable: add [clerk_admin] secret_key = \"sk_...\" (see secrets.toml.example).")
+    elif not secret_key.startswith("sk_") or "REPLACE" in secret_key:
+        bad("[clerk_admin] secret_key doesn't look like a Clerk Secret key.",
+            "Copy it from Clerk > Configure > API keys > Secret keys. It starts with sk_.")
+    else:
+        try:
+            check = httpx.get("https://api.clerk.com/v1/users/count",
+                              headers={"Authorization": "Bearer " + secret_key}, timeout=15)
+            if check.status_code == 200:
+                ok("Secret key accepted by Clerk (Delete account will work)")
+            elif check.status_code in (401, 403):
+                bad("Clerk rejected the Secret key.",
+                    "Copy it again from Clerk > Configure > API keys, for the SAME Clerk app.")
+            else:
+                print(f"  [?]    Unexpected answer from Clerk's API (HTTP {check.status_code}).")
+        except Exception as error:
+            bad(f"Couldn't reach api.clerk.com ({type(error).__name__}).", "Check VPN / network filters.")
+
+    # ------------------------------------------------------------------
+    step("6.Things to check in the Clerk dashboard (can't be tested from here)")
     print(f"  - Redirect URI in the OAuth application is exactly: {EXPECTED_REDIRECT}")
     print("  - Open the app at http://localhost:8501 (NOT 127.0.0.1)")
     print("  - If you just created your account, click SIGN IN once more")

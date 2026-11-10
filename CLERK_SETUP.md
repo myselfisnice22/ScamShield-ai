@@ -99,6 +99,28 @@ python -m unittest test_streamlit_auth -v
 
 These tests use their own fake keys and need no Clerk account.
 
+## Settings tab: sign out and delete account
+
+Signed-in users get a **⚙️ Settings** tab with **Sign out** and **Delete account**.
+
+Deleting an account removes the user from Clerk (Clerk's Backend API) and
+clears their scan history in the session. It needs Clerk's **Secret key**,
+which is different from the OAuth Client Secret:
+
+1. Clerk dashboard → **Configure → API keys** → copy the **Secret key** (`sk_test_…` / `sk_live_…`).
+2. Add to `.streamlit/secrets.toml`:
+
+   ```toml
+   [clerk_admin]
+   secret_key = "sk_test_..."
+   ```
+
+3. Restart ScamShield. `python check_clerk_setup.py` (step 5b) confirms Clerk accepts it.
+
+Without it, the Settings tab still has Sign out and explains how to switch
+deletion on. The Secret key has full control of your Clerk app: never commit
+it or share it.
+
 ## Troubleshooting: "I sign in on Clerk but come back logged out"
 
 Sign-in happens in three steps, and Streamlit silently discards the result if
@@ -111,6 +133,7 @@ step 2 or 3 fails:
 
 | Cause | What ScamShield now does |
 |---|---|
+| `client_kwargs` has no `prompt`. Streamlit 1.66+ then asks Clerk for `prompt=select_account`, which Clerk rejects **after** you type your password (terminal: `Used unknown value '[select_account]' for prompt parameter`). | Blocks sign-in and shows the fix: `client_kwargs = { scope = "openid profile email", prompt = "" }`. `check_clerk_setup.py` checks it too. |
 | Opened at `127.0.0.1:8501` or the "Network URL" instead of `localhost:8501`. Browsers keep cookies separately per address, so step 2 can't find the cookie. **The most common cause.** | Shows a warning and a button to the right address instead of a sign-in that would fail |
 | Sign-in interrupted (Back button, created an account in the middle) | Shows "The sign-in was interrupted…". Sign in again. |
 | Computer clock wrong, so Clerk's token looks expired | Shows the reason and how to sync the Windows clock |

@@ -7,7 +7,7 @@ from PIL import Image, UnidentifiedImageError
 from ocr_engine import OCRError, read_text
 
 from experiment_v10 import scan_message
-from streamlit_auth import account_box, require_sign_in
+from streamlit_auth import account_settings, require_sign_in
 
 
 # ==========================================
@@ -471,9 +471,10 @@ with screenshot_tab:
 # RESULTS / HISTORY / INFO TABS
 # ==========================================
 
-results_tab, history_tab, info_tab = st.tabs([
+results_tab, history_tab, settings_tab, info_tab = st.tabs([
     "🔍 Results",
     "🕘 History",
+    "⚙️ Settings",
     "ℹ️ Info"
 ])
 
@@ -715,14 +716,28 @@ with history_tab:
 
 
 # ==========================================
+# SETTINGS (account: sign out / delete)
+# ==========================================
+
+def clear_my_data():
+    """Wipe everything ScamShield keeps for this user in the session."""
+    st.session_state.history = []
+    st.session_state.latest_report = None
+    st.session_state.screenshot_report = None
+
+
+with settings_tab:
+
+    account_settings(clear_app_data=clear_my_data)
+
+
+# ==========================================
 # INFO
 # ==========================================
 
 with info_tab:
 
     st.subheader("About ScamShield AI")
-
-    account_box()
 
     st.write(
         "**Version:** Experiment 10"

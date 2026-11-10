@@ -5,7 +5,9 @@ Run:  python -m unittest test_streamlit_auth -v
 * Unit tests check the helper logic (address check, session expiry,
   failure classification) without starting Streamlit.
 * App tests run mobile_app.py with Streamlit's AppTest, simulating a
-  signed-in user (AppTest.user) and the browser address (AppTest.context).
+  signed-in user and the browser address by replacing streamlit_auth's
+  _current_user / _browser_url / _sign_out hooks (Streamlit 1.66's AppTest
+  can't fake st.user or st.context.url).
 * The real cookie-based login flow (login, refresh, logout, expired token,
   wrong address) is tested end-to-end in test_clerk_login_flow.py.
 
@@ -33,6 +35,7 @@ CLERK_SECRETS = {
         "client_id": "test-client-id",
         "client_secret": "test-client-secret",
         "server_metadata_url": "https://test-app.clerk.accounts.dev/.well-known/openid-configuration",
+        "client_kwargs": {"scope": "openid profile email", "prompt": ""},
     },
 }
 
@@ -97,6 +100,9 @@ class TestHelpers(unittest.TestCase):
             "Error during OAuth authorization redirect. ConnectError: [Errno 11001] getaddrinfo failed": "network",
             "Error during authentication: access_denied. Error description: None": "denied",
             "Error, misconfigured origin for `redirect_uri` in secrets.": "redirect",
+            "Error during authentication: invalid_request. Error description: The request is missing a "
+            "required parameter, includes an invalid parameter value, includes a parameter more than once, "
+            "or is otherwise malformed. Used unknown value '[select_account]' for prompt parameter": "prompt",
             "something new and strange": "unknown",
         }
         for message, expected in cases.items():
@@ -119,7 +125,22 @@ class TestHelpers(unittest.TestCase):
 @unittest.skipUnless(_streamlit_available(), "Streamlit is not installed")
 class TestStreamlitSignIn(unittest.TestCase):
 
-    def run_app(self, auth=None, user=None, url="http://localhost:8501/"):
+    def setUp(self):
+        from unittest import mock
+        import streamlit_auth
+        self.fake_user = {}
+        self.fake_url = "http://localhost:8501/"
+        for name, fake in (("_current_user", lambda: dict(self.fake_user)),
+                           ("_browser_url", lambda: self.fake_url),
+                           ("_sign_out", self._fake_sign_out)):
+            patcher = mock.patch.object(streamlit_auth, name, fake)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def _fake_sign_out(self):
+        self.fake_user = {"is_logged_in": False}
+
+    def run_app(self, auth=None, user=None, url="http://localhost:8501/", extra_secrets=None):
         from streamlit.testing.v1 import AppTest
         app = AppTest.from_file("mobile_app.py", default_timeout=60)
         # A non-empty secrets dict REPLACES .streamlit/secrets.toml, so these
@@ -127,10 +148,11 @@ class TestStreamlitSignIn(unittest.TestCase):
         app.secrets["scamshield_test"] = "isolated"
         if auth is not None:
             app.secrets["auth"] = auth
+        for name, value in (extra_secrets or {}).items():
+            app.secrets[name] = value
         if user is not None:
-            app.user = user
-        if url is not None:
-            app.context = {"url": url}
+            self.fake_user = dict(user)
+        self.fake_url = url
         app.run()
         self.assertFalse(app.exception, [e.message for e in app.exception])
         return app
@@ -165,6 +187,15 @@ class TestStreamlitSignIn(unittest.TestCase):
         self.assertFalse(self.has_sign_in_button(app))
         self.assertFalse(self.scanner_visible(app))
         self.assertTrue(any("different address" in w.value for w in app.warning))
+
+    def test_missing_prompt_setting_is_explained_instead_of_failing_at_clerk(self):
+        import copy
+        no_prompt = copy.deepcopy(CLERK_SECRETS)
+        no_prompt["clerk"]["client_kwargs"] = {"scope": "openid profile email"}
+        app = self.run_app(no_prompt, user={"is_logged_in": False})
+        self.assertFalse(self.has_sign_in_button(app))
+        self.assertFalse(self.scanner_visible(app))
+        self.assertTrue(any("prompt" in e.value for e in app.error))
 
     def test_failed_sign_in_reason_is_shown(self):
         import streamlit_auth
@@ -215,6 +246,112 @@ class TestStreamlitSignIn(unittest.TestCase):
         again.click().run()
         self.assertFalse(app.exception)
         self.assertTrue(self.has_sign_in_button(app))
+
+    # ----- settings: delete account -----
+    ADMIN = {"clerk_admin": {"secret_key": "sk_test_not_real"}}
+
+    def delete_button(self, app):
+        return next(b for b in app.button if "DELETE MY ACCOUNT" in b.label)
+
+    def test_settings_tab_has_sign_out_and_delete(self):
+        app = self.run_app(CLERK_SECRETS, user=SIGNED_IN_USER, extra_secrets=self.ADMIN)
+        self.assertTrue(any("Sign out" in b.label for b in app.button))
+        self.assertTrue(self.delete_button(app).disabled, "must not be clickable before confirming")
+
+    def test_delete_without_secret_key_explains_how_to_enable(self):
+        app = self.run_app(CLERK_SECRETS, user=SIGNED_IN_USER)
+        self.assertFalse(any("DELETE MY ACCOUNT" in b.label for b in app.button))
+        self.assertTrue(any("isn't switched on" in i.value for i in app.info))
+
+    def test_delete_needs_checkbox_and_typed_word(self):
+        app = self.run_app(CLERK_SECRETS, user=SIGNED_IN_USER, extra_secrets=self.ADMIN)
+        app.checkbox(key="delete_account_understood").check().run()
+        self.assertTrue(self.delete_button(app).disabled)
+        app.text_input(key="delete_account_typed").input("delete please").run()
+        self.assertTrue(self.delete_button(app).disabled)
+        app.text_input(key="delete_account_typed").input("DELETE").run()
+        self.assertFalse(self.delete_button(app).disabled)
+
+    def confirm_and_delete(self, result):
+        from unittest import mock
+        import streamlit_auth
+        calls = []
+
+        def fake_delete(user_id, secret_key):
+            calls.append((user_id, secret_key))
+            return result
+
+        with mock.patch.object(streamlit_auth, "delete_clerk_user", fake_delete):
+            app = self.run_app(CLERK_SECRETS, user=SIGNED_IN_USER, extra_secrets=self.ADMIN)
+            app.session_state["history"] = [{"preview": "old scan", "risk": "NEEDS REVIEW", "prediction": "scam", "source": ""}]
+            app.checkbox(key="delete_account_understood").check()
+            app.text_input(key="delete_account_typed").input("DELETE").run()
+            self.delete_button(app).click().run()
+        self.assertFalse(app.exception)
+        return app, calls
+
+    def test_successful_delete_clears_history_and_signs_out(self):
+        app, calls = self.confirm_and_delete((True, None))
+        self.assertEqual(calls, [("user_123", "sk_test_not_real")])
+        self.assertEqual(app.session_state["history"], [])
+        self.assertFalse(self.fake_user.get("is_logged_in"), "must be signed out after deleting")
+
+    def test_failed_delete_keeps_account_and_explains(self):
+        app, calls = self.confirm_and_delete((False, "key"))
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(self.fake_user.get("is_logged_in"))
+        self.assertEqual(app.session_state["history"], [{"preview": "old scan", "risk": "NEEDS REVIEW", "prediction": "scam", "source": ""}])
+        self.assertTrue(any("not deleted" in e.value for e in app.error))
+
+
+class TestDeleteClerkUser(unittest.TestCase):
+    """delete_clerk_user talks to Clerk's Backend API (faked here)."""
+
+    def setUp(self):
+        import streamlit_auth
+        self.auth = streamlit_auth
+        self.requests = []
+
+    def opener(self, outcome):
+        import contextlib
+        import urllib.error
+
+        def fake(request, timeout):
+            self.requests.append(request)
+            if isinstance(outcome, int):
+                raise urllib.error.HTTPError(request.full_url, outcome, "x", {}, None)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return contextlib.nullcontext()
+        return fake
+
+    def test_success_sends_authorised_delete_for_that_user(self):
+        self.assertEqual(self.auth.delete_clerk_user("user_abc123", "sk_x", self.opener("ok")),
+                         (True, None))
+        request = self.requests[0]
+        self.assertEqual(request.get_method(), "DELETE")
+        self.assertEqual(request.full_url, "https://api.clerk.com/v1/users/user_abc123")
+        self.assertEqual(request.get_header("Authorization"), "Bearer sk_x")
+
+    def test_already_deleted_counts_as_deleted(self):
+        self.assertEqual(self.auth.delete_clerk_user("user_abc", "sk_x", self.opener(404)), (True, None))
+
+    def test_wrong_key(self):
+        self.assertEqual(self.auth.delete_clerk_user("user_abc", "sk_x", self.opener(401)), (False, "key"))
+
+    def test_server_error(self):
+        self.assertEqual(self.auth.delete_clerk_user("user_abc", "sk_x", self.opener(500)),
+                         (False, "unknown"))
+
+    def test_network_error(self):
+        self.assertEqual(self.auth.delete_clerk_user("user_abc", "sk_x", self.opener(OSError("down"))),
+                         (False, "network"))
+
+    def test_odd_user_id_is_never_sent(self):
+        for bad in (None, "", "user_../../instances", "org_123", "user_1?x=1"):
+            self.assertEqual(self.auth.delete_clerk_user(bad, "sk_x", self.opener("ok")),
+                             (False, "bad_user"))
+        self.assertEqual(self.requests, [])
 
 
 if __name__ == "__main__":

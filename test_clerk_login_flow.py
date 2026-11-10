@@ -67,7 +67,7 @@ class TestClerkLoginFlow(unittest.TestCase):
                 f'client_id = "{CLIENT_ID}"\n'
                 f'client_secret = "{CLIENT_SECRET}"\n'
                 f'server_metadata_url = "{cls.clerk.discovery_url}"\n'
-                'client_kwargs = { scope = "openid profile email" }\n'
+                'client_kwargs = { scope = "openid profile email", prompt = "" }\n'
             )
         cls.log = open(os.path.join(cls.tmp.name, "streamlit.log"), "w", encoding="utf-8")
         cls.server = subprocess.Popen(
@@ -154,6 +154,16 @@ class TestClerkLoginFlow(unittest.TestCase):
         self.assertTrue(cookie.has_nonstandard_attr("HttpOnly"), "JavaScript must not read it")
         self.assertIsNotNone(cookie.expires, "must be persistent, so a refresh keeps you signed in")
         self.assertGreater(cookie.expires, time.time() + 6 * 24 * 3600)
+
+    def test_sign_in_never_sends_a_prompt_clerk_rejects(self):
+        # Streamlit 1.66+ defaults to prompt=select_account, which real Clerk
+        # rejects after the password step ("it sends me back").
+        self.clerk.prompts.clear()
+        self.sign_in()
+        self.assertTrue(self.clerk.prompts, "the browser should have reached Clerk")
+        self.assertTrue(all(p in ("", "login", "consent", "none") for p in self.clerk.prompts),
+                        self.clerk.prompts)
+        self.assertIsNotNone(self.auth_cookie())
 
     def test_page_refresh_keeps_the_session(self):
         self.sign_in()

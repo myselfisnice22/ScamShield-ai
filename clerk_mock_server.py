@@ -38,6 +38,7 @@ class MockClerk:
         self.issuer = f"http://localhost:{self.port}"
         self.codes = {}
         self.token_requests = 0
+        self.prompts = []  # the "prompt" value of every /oauth/authorize request
         self.reset()
 
     def reset(self):
@@ -113,6 +114,14 @@ class MockClerk:
                 if url.path == "/.well-known/jwks.json":
                     return self._send(200, {"keys": [mock.key.as_dict(private=False)]})
                 if url.path == "/oauth/authorize":
+                    mock.prompts.append(query.get("prompt", ""))
+                    if query.get("prompt", "") not in ("", "login", "consent", "none"):
+                        # Real Clerk rejects e.g. prompt=select_account (Streamlit's default).
+                        back = query["redirect_uri"] + "?" + urlencode({
+                            "error": "invalid_request", "state": query.get("state", ""),
+                            "error_description": "Used unknown value '[%s]' for prompt parameter"
+                            % query.get("prompt")})
+                        return self._send(302, location=back)
                     code = secrets.token_urlsafe(16)
                     mock.codes[code] = query
                     back = query["redirect_uri"] + "?" + urlencode(
