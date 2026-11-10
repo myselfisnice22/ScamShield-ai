@@ -99,6 +99,20 @@ python -m unittest test_streamlit_auth -v
 
 These tests use their own fake keys and need no Clerk account.
 
+## Sign-in on Streamlit Community Cloud (e.g. junosai.streamlit.app)
+
+`secrets.toml` is never uploaded to GitHub, so the hosted app needs its own copy:
+
+1. Clerk → **OAuth applications** → your app → **Redirect URIs**: add
+   `https://YOUR-APP.streamlit.app/oauth2callback` (keep the localhost one).
+2. share.streamlit.io → your app → **⋮ → Settings → Secrets**: paste your
+   `secrets.toml`, but with
+   `redirect_uri = "https://YOUR-APP.streamlit.app/oauth2callback"`. Save.
+3. `requirements.txt` must list **Authlib** and **httpx**. Without httpx the
+   SIGN IN button gives "Internal server error" on the hosted app.
+
+Without step 2 the hosted app opens with no sign-in at all.
+
 ## Settings tab: sign out and delete account
 
 Signed-in users get a **⚙️ Settings** tab with **Sign out** and **Delete account**.

@@ -188,6 +188,24 @@ class TestStreamlitSignIn(unittest.TestCase):
         self.assertFalse(self.scanner_visible(app))
         self.assertTrue(any("different address" in w.value for w in app.warning))
 
+    def test_missing_library_is_explained_instead_of_server_error(self):
+        # On Streamlit Cloud, httpx wasn't installed: SIGN IN gave "Internal server error".
+        from unittest import mock
+        import streamlit_auth
+        with mock.patch.object(streamlit_auth, "missing_sign_in_library", lambda: "httpx"):
+            app = self.run_app(CLERK_SECRETS, user={"is_logged_in": False})
+        self.assertFalse(self.has_sign_in_button(app))
+        self.assertTrue(any("httpx" in e.value for e in app.error))
+
+    def test_requirements_list_every_sign_in_library(self):
+        import pathlib
+        import re
+        lines = (pathlib.Path(__file__).parent / "requirements.txt").read_text().splitlines()
+        names = {re.split(r"[<>=\[ ]", l.strip(), 1)[0].lower() for l in lines
+                 if l.strip() and not l.strip().startswith("#")}
+        for needed in ("authlib", "httpx"):
+            self.assertIn(needed, names, f"{needed} must be in requirements.txt for Streamlit Cloud")
+
     def test_missing_prompt_setting_is_explained_instead_of_failing_at_clerk(self):
         import copy
         no_prompt = copy.deepcopy(CLERK_SECRETS)
