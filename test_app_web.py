@@ -118,7 +118,9 @@ class TestWebsite(unittest.TestCase):
         self.user = {"is_logged_in": True, "name": "Test Kid", "sub": "user_1", "iat": time.time()}
         app = self.run_app(auth=CLERK, page="scanner")
         self.assertEqual(len(app.text_area), 1)
-        self.click(app, "👤 Account")
+        self.assertIn("👋 Hi, Test!", " ".join(str(m.value) for m in app.markdown))
+        self.click(app, "👋 Hi, Test")
+        self.assertTrue(any("Hi, Test!" in h.value for h in app.subheader))
         self.assertTrue(any("Signed in as:** Test Kid" in m.value for m in app.markdown))
 
     def test_sign_in_page_without_clerk(self):

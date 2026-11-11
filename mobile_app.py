@@ -7,7 +7,7 @@ from PIL import Image, UnidentifiedImageError
 from ocr_engine import OCRError, read_text
 
 from experiment_v10 import scan_message
-from streamlit_auth import account_settings, require_sign_in
+from streamlit_auth import account_settings, first_name, is_signed_in, require_sign_in
 import device
 import ui_theme as ui
 
@@ -159,6 +159,12 @@ st.write(
     "Scan suspicious SMS messages, WhatsApp "
     "messages, emails, and screenshots."
 )
+
+if is_signed_in():
+    ui.html(ui.greeting(
+        first_name(),
+        "You're signed in. Your account is in the ⚙️ Settings tab."
+    ))
 
 ui.html(
     ui.badge("🛡️ Free scam checker", on=True)

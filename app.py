@@ -145,8 +145,10 @@ def nav():
         scanner.button("Scanner", type="tertiary", on_click=go, args=("scanner",),
                        key="nav_scanner")
         if configured and signed_in:
-            account.button("👤 Account", on_click=go, args=("account",), key="nav_account",
-                           use_container_width=True)
+            hello = auth.first_name()
+            account.button(f"👋 Hi, {hello}" if hello else "👤 Account", on_click=go,
+                           args=("account",), key="nav_account", use_container_width=True,
+                           help="Your account: sign out or delete it")
         elif configured:
             account.button("Sign in", on_click=go, args=("signin",), key="nav_signin",
                            use_container_width=True)
@@ -362,6 +364,9 @@ def scanner_results():
 
 def scanner_page():
     sign_in_gate()
+    if auth.clerk_configured() and auth.is_signed_in():
+        ui.html(ui.greeting(auth.first_name(),
+                            "You're signed in. Your account is under the Hi button at the top."))
     ui.html('<div class="ss-section-title">Scan a message</div>'
             '<p class="ss-lead">Paste a text, WhatsApp message or email, or upload a '
             "screenshot. ScamShield checks it with an AI model and scam rules.</p>")

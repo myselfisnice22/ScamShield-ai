@@ -235,6 +235,15 @@ class TestStreamlitSignIn(unittest.TestCase):
         self.assertTrue(self.scanner_visible(app))
         self.assertFalse(self.has_sign_in_button(app))
         self.assertTrue(any("Signed in as:** Test Kid" in m.value for m in app.markdown))
+        self.assertIn("👋 Hi, Test!", " ".join(str(m.value) for m in app.markdown))
+        self.assertTrue(any("Hi, Test!" in h.value for h in app.subheader))
+
+    def test_first_name_is_safe_for_greetings(self):
+        import streamlit_auth
+        self.assertEqual(streamlit_auth.first_name({"given_name": "victor", "name": "Victor M"}), "Victor")
+        self.assertEqual(streamlit_auth.first_name({"email": "jane.doe@example.com"}), "Jane")
+        self.assertEqual(streamlit_auth.first_name({"name": "<img src=x>"}), "Img")
+        self.assertEqual(streamlit_auth.first_name({}), "")
 
     def test_session_survives_rerun_and_refresh(self):
         app = self.run_app(CLERK_SECRETS, user=SIGNED_IN_USER)

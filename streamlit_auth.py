@@ -28,6 +28,7 @@ NEVER commit the real secrets.toml to GitHub.
 
 import ipaddress
 import logging
+import re
 import threading
 import time
 from urllib.parse import urlsplit
@@ -303,6 +304,22 @@ def _sign_out():
     st.logout()
 
 
+def first_name(user=None):
+    """The signed-in person's first name for a greeting ('' if unknown).
+
+    Uses Clerk's given_name, else the first word of name, else the part of the
+    email before @. Only letters, digits, apostrophes and hyphens are kept, so
+    it is always safe to show.
+    """
+    user = _current_user() if user is None else user
+    raw = str(user.get("given_name") or user.get("name") or "").strip()
+    if not raw:
+        raw = str(user.get("email") or "").split("@")[0].replace(".", " ")
+    first = raw.split()[0] if raw.split() else ""
+    first = re.sub(r"[^\w'-]", "", first)[:24]
+    return first[:1].upper() + first[1:]
+
+
 def is_signed_in():
     return bool(_current_user().get("is_logged_in"))
 
@@ -454,14 +471,18 @@ def account_settings(clear_app_data=None):
     clear_app_data: called after a successful delete, before signing out,
     so the app can wipe anything it keeps for this user (e.g. scan history).
     """
-    st.subheader("👤 Account")
     if not clerk_configured():
+        st.subheader("👤 Account")
         st.write("**Sign-in:** not enabled on this server.")
         return
     if not is_signed_in():
+        st.subheader("👤 Account")
         return
 
     user = _current_user()
+    hello = first_name(user)
+    st.subheader(f"👋 Hi, {hello}!" if hello else "👋 Hi!")
+    st.caption("👤 Your account")
     name = user.get("name") or user.get("email") or "your account"
     st.write(f"**Signed in as:** {name}")
     if user.get("email") and user.get("email") != name:

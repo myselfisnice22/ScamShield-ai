@@ -174,6 +174,11 @@ a.ss-ghost {
 }
 a.ss-ghost:hover { border-color: var(--ss-red); }
 .ss-section-title { font-size: 2.5rem; font-weight: 700; margin: 0 0 .25rem; }
+.ss-hello {
+  background: var(--ss-surface); border: 1px solid var(--ss-border); border-left: 3px solid var(--ss-red);
+  border-radius: var(--ss-radius-md); padding: 12px 16px; margin: .25rem 0 1rem;
+}
+.ss-hello .t { font-weight: 700; font-size: 1.15rem; }
 .ss-steps { padding-left: 1.2rem; color: var(--ss-text-muted); line-height: 1.7; margin: .3rem 0 .6rem; }
 
 @media (max-width: 640px) {
@@ -317,6 +322,13 @@ def history_entry(entry):
     return (f'<div class="ss-history">{pill(str(entry.get("risk", "")), level)} '
             f'<span class="ss-small">{escape(meta)}</span>'
             f'<div class="p">{escape(str(entry.get("preview", "")))}</div></div>')
+
+
+def greeting(first_name, detail):
+    """'👋 Hi, Name' card shown after sign-in."""
+    hello = f"👋 Hi, {escape(first_name)}!" if first_name else "👋 Hi!"
+    return (f'<div class="ss-hello"><div class="t">{hello}</div>'
+            f'<div class="ss-small">{escape(detail)}</div></div>')
 
 
 def feature(icon, title, body):
