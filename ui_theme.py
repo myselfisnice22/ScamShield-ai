@@ -180,6 +180,56 @@ a.ss-ghost:hover { border-color: var(--ss-red); }
   border-radius: var(--ss-radius-md); padding: 12px 16px; margin: .25rem 0 1rem;
 }
 .ss-hello .t { font-weight: 700; font-size: 1.15rem; }
+.ss-hero {
+  position: relative; overflow: hidden; border-radius: var(--ss-radius-lg); padding: 22px 20px 18px;
+  margin: 0 0 1rem; border: 1px solid var(--ss-border);
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(255,75,75,.35) 0%, rgba(255,75,75,0) 55%),
+    radial-gradient(90% 80% at 0% 100%, rgba(124,183,255,.16) 0%, rgba(124,183,255,0) 60%),
+    var(--ss-surface);
+  animation: ss-rise .5s ease-out both;
+}
+.ss-hero .shield {
+  font-size: 2.6rem; line-height: 1; display: inline-block;
+  filter: drop-shadow(0 0 14px rgba(255,75,75,.65)); animation: ss-float 4s ease-in-out infinite;
+}
+.ss-hero .name { font-size: 2rem; font-weight: 900; letter-spacing: -0.02em; margin: .35rem 0 .1rem; }
+.ss-hero .name span { color: var(--ss-red); }
+.ss-hero .tag { color: var(--ss-text-muted); line-height: 1.45; margin-bottom: .75rem; }
+.ss-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ss-chip {
+  font-size: .8rem; font-weight: 700; padding: .2rem .6rem; border-radius: 999px;
+  background: rgba(255,255,255,.06); border: 1px solid var(--ss-border); color: var(--ss-text);
+}
+.ss-meter { margin: .2rem 0 1rem; }
+.ss-meter .top { display: flex; justify-content: space-between; font-weight: 700; margin-bottom: .35rem; }
+.ss-meter .track { height: 12px; border-radius: 999px; background: var(--ss-surface-2); overflow: hidden; }
+.ss-meter .fill { height: 100%; border-radius: 999px; animation: ss-grow .9s ease-out both; transform-origin: left; }
+.ss-meter .fill.high { background: linear-gradient(90deg, #FF8A3D, var(--ss-red)); }
+.ss-meter .fill.review { background: linear-gradient(90deg, #FFE08A, var(--ss-amber)); }
+.ss-meter .fill.none { background: linear-gradient(90deg, #A9D1FF, var(--ss-blue)); }
+.ss-meter .note { font-size: .8rem; color: var(--ss-text-muted); margin-top: .3rem; }
+.ss-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: .3rem 0 1rem; }
+.ss-stat { background: var(--ss-surface-2); border-radius: var(--ss-radius-sm); padding: 10px; text-align: center; }
+.ss-stat .n { font-size: 1.5rem; font-weight: 900; line-height: 1.1; }
+.ss-stat .l { font-size: .75rem; color: var(--ss-text-muted); }
+.ss-stat.high .n { color: var(--ss-red-text); }
+.ss-stat.medium .n { color: var(--ss-amber); }
+.ss-empty { text-align: center; padding: 26px 16px; border: 1px dashed var(--ss-border); border-radius: var(--ss-radius-lg); }
+.ss-empty .i { font-size: 2.4rem; animation: ss-float 4s ease-in-out infinite; display: inline-block; }
+.ss-empty .t { font-weight: 700; font-size: 1.1rem; margin: .4rem 0 .2rem; }
+.ss-tips { display: grid; gap: 8px; }
+.ss-tip { display: flex; gap: 12px; align-items: flex-start; background: var(--ss-surface-2); border-radius: var(--ss-radius-sm); padding: 12px 14px; }
+.ss-tip .i { font-size: 1.4rem; line-height: 1.2; }
+.ss-tip b { display: block; }
+.ss-tip span { color: var(--ss-text-muted); font-size: .9rem; }
+.ss-verdict, .ss-warn, .ss-hello, .ss-history, .ss-tip { animation: ss-rise .45s ease-out both; }
+.ss-verdict.high { box-shadow: 0 0 0 0 rgba(255,75,75,.5); animation: ss-rise .45s ease-out both, ss-pulse 2.2s ease-out .5s 2; }
+@keyframes ss-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes ss-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes ss-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes ss-pulse { 0% { box-shadow: 0 0 0 0 rgba(255,75,75,.45); } 100% { box-shadow: 0 0 0 14px rgba(255,75,75,0); } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
 .ss-steps { padding-left: 1.2rem; color: var(--ss-text-muted); line-height: 1.7; margin: .3rem 0 .6rem; }
 
 @media (max-width: 640px) {
@@ -202,6 +252,18 @@ a.ss-ghost:hover { border-color: var(--ss-red); }
 """
 
 
+# Phone app only: every tab's content sits in a card.
+_MOBILE_CSS = """
+<style>
+[data-testid="stTabPanel"] {
+  background: var(--ss-surface); border: 1px solid var(--ss-border);
+  border-radius: var(--ss-radius-lg); padding: 18px 16px; margin-top: 10px;
+}
+[data-testid="stTabs"] [role="tablist"] { width: 100%; overflow-x: auto; }
+</style>
+"""
+
+
 def apply_theme(mode="mobile"):
     """Inject the ScamShield design system. mode: 'mobile' or 'web'."""
     variables = "\n".join(f"  --ss-{name}: {value};" for name, value in TOKENS.items())
@@ -209,6 +271,8 @@ def apply_theme(mode="mobile"):
     css = (_CSS.replace("__VARS__", variables)
            .replace("__MAX_WIDTH__", "1200px" if web else "720px")
            .replace("__TOP__", "3.5rem"))
+    if not web:
+        css += _MOBILE_CSS
     st.markdown(css, unsafe_allow_html=True)
 
 
@@ -330,6 +394,60 @@ def greeting(first_name, detail):
     hello = f"👋 Hi, {escape(first_name)}!" if first_name else "👋 Hi!"
     return (f'<div class="ss-hello"><div class="t">{hello}</div>'
             f'<div class="ss-small">{escape(detail)}</div></div>')
+
+
+def mobile_hero(subtitle="Scan suspicious texts, WhatsApp messages, emails and screenshots."):
+    """Glowing app header for the phone app."""
+    chips = "".join(f'<span class="ss-chip">{escape(c)}</span>'
+                    for c in ("🧠 AI model", "🛡️ 10+ scam rules", "🔒 Private", "⚡ Free"))
+    return ('<div class="ss-hero"><div class="shield">🛡️</div>'
+            '<div class="name">ScamShield <span>AI</span></div>'
+            f'<div class="tag">{escape(subtitle)}</div><div class="ss-chips">{chips}</div></div>')
+
+
+def risk_meter(report):
+    """Colour-coded bar for the AI's scam probability (if the report has one)."""
+    probability = report.get("ai_scam_probability")
+    if probability is None:
+        return ""
+    percent = max(0, min(100, round(float(probability) * 100)))
+    level = risk_level(report.get("risk", ""))
+    return (f'<div class="ss-meter"><div class="top"><span>🎯 Scam score</span><span>{percent}%</span></div>'
+            f'<div class="track"><div class="fill {level}" style="width:{max(percent, 3)}%"></div></div>'
+            '<div class="note">How scam-like the wording looks to the AI. The rules decide HIGH RISK.</div></div>')
+
+
+def warning_stats(report):
+    """Three tiles: serious / medium / other warning counts."""
+    counts = {"high": 0, "medium": 0, "low": 0}
+    for finding in report.get("warnings", []):
+        severity = finding.get("severity", "low")
+        counts[severity if severity in counts else "low"] += 1
+    tiles = (("high", "Serious"), ("medium", "Medium"), ("low", "Other"))
+    return '<div class="ss-stats">' + "".join(
+        f'<div class="ss-stat {key}"><div class="n">{counts[key]}</div><div class="l">{label}</div></div>'
+        for key, label in tiles) + "</div>"
+
+
+def empty_state(icon, title, body):
+    return (f'<div class="ss-empty"><div class="i">{escape(icon)}</div>'
+            f'<div class="t">{escape(title)}</div><div class="ss-small">{escape(body)}</div></div>')
+
+
+TIPS = [
+    ("⏰", "Rush = red flag", "“Act now”, “within 24 hours” or “account closed today” is pressure, not service."),
+    ("🔑", "Codes stay private", "No bank, courier or company will ever ask for your PIN, password or one-time code."),
+    ("🔗", "Check the link", "Look-alike addresses (bank-verify-login.com) are a classic trick. Type the real site yourself."),
+    ("💸", "Fees before money", "Paying a “release”, “delivery” or “registration” fee to receive money is almost always a scam."),
+    ("📞", "Call back the real number", "A “new number” asking for money? Call the old one you already have."),
+]
+
+
+def tips(count=None):
+    chosen = TIPS if count is None else TIPS[:count]
+    return '<div class="ss-tips">' + "".join(
+        f'<div class="ss-tip"><div class="i">{escape(i)}</div><div><b>{escape(t)}</b>'
+        f'<span>{escape(b)}</span></div></div>' for i, t, b in chosen) + "</div>"
 
 
 def feature(icon, title, body):

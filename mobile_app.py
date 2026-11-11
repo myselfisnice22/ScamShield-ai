@@ -41,7 +41,13 @@ ui.apply_theme("mobile")
 # SIGN-IN (Clerk) - only when configured
 # ==========================================
 
-require_sign_in(footer=lambda: device.switch_view_button("phone"))
+def show_header():
+    ui.html(ui.mobile_hero())
+    st.caption("Mobile Edition | Experiment 10")
+
+
+require_sign_in(header=show_header,
+                footer=lambda: device.switch_view_button("phone"))
 
 
 # ==========================================
@@ -61,6 +67,21 @@ defaults = {
 for key, value in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = value
+
+
+EXAMPLES = {
+    "📦 Parcel": "Your parcel is on hold. Pay the R19.99 redelivery "
+                "fee within 24h: post-redeliver.info/pay",
+    "🏦 Bank": "ALERT: Your bank account has been suspended. Verify "
+              "your password and OTP now at secure-bank-verify.com "
+              "or lose access today.",
+    "💼 Job": "Hi! We saw your CV. Earn R3,000 a day from home. Pay a "
+             "R250 registration fee to start. Reply YES on WhatsApp.",
+}
+
+
+def use_example(text):
+    st.session_state.mobile_message = text
 
 
 def changed_history_preference():
@@ -151,14 +172,7 @@ def read_screenshot(image):
 # HEADER
 # ==========================================
 
-st.title("🛡️ ScamShield AI 😎")
-
-st.caption("Mobile Edition | Experiment 10")
-
-st.write(
-    "Scan suspicious SMS messages, WhatsApp "
-    "messages, emails, and screenshots."
-)
+show_header()
 
 if is_signed_in():
     ui.html(ui.greeting(
@@ -167,13 +181,9 @@ if is_signed_in():
     ))
 
 ui.html(
-    ui.badge("🛡️ Free scam checker", on=True)
-    + ui.badge("🧠 AI + 10 scam rules")
-    + '<p class="ss-small">ScamShield is an experimental security '
+    '<p class="ss-small">ScamShield is an experimental security '
     "tool. A low-risk result never guarantees safety.</p>"
 )
-
-st.divider()
 
 
 # ==========================================
@@ -198,6 +208,7 @@ with text_tab:
 
         message = st.text_area(
             "Paste your message",
+            key="mobile_message",
             placeholder=(
                 "Paste a suspicious SMS, "
                 "WhatsApp message, or email..."
@@ -214,6 +225,21 @@ with text_tab:
 
     if scan_button:
         run_scan(message)
+
+    st.caption("⚡ Try an example")
+
+    example_columns = st.columns(len(EXAMPLES))
+
+    for column, (label, text) in zip(
+        example_columns, EXAMPLES.items()
+    ):
+        column.button(
+            label,
+            key=f"example_{label}",
+            on_click=use_example,
+            args=(text,),
+            use_container_width=True
+        )
 
 
 # ==========================================
@@ -322,6 +348,8 @@ with screenshot_tab:
 
                 show_verdict_banner(report["risk"])
 
+                ui.html(ui.risk_meter(report))
+
                 st.caption(
                     "Verdict source: "
                     + str(report.get(
@@ -397,10 +425,12 @@ with results_tab:
 
     if report is None:
 
-        st.info(
-            "Scan a message or screenshot "
-            "to see the results."
-        )
+        ui.html(ui.empty_state(
+            "🔍",
+            "No scan yet",
+            "Paste a message or upload a screenshot above, "
+            "then come back here for the full breakdown."
+        ))
 
     else:
 
@@ -428,6 +458,8 @@ with results_tab:
         st.subheader("🛡️ ScamShield Verdict")
 
         show_verdict_banner(risk)
+
+        ui.html(ui.risk_meter(report) + ui.warning_stats(report))
 
         st.caption(
             "Final assessment: " + risk
@@ -561,7 +593,12 @@ with history_tab:
 
     else:
 
-        st.info("No saved scans.")
+        ui.html(ui.empty_state(
+            "🕘",
+            "No saved scans",
+            "Switch on “Remember scans” above to keep a list "
+            "while you use ScamShield."
+        ))
 
 
 # ==========================================
@@ -592,6 +629,12 @@ with settings_tab:
 # ==========================================
 
 with info_tab:
+
+    st.subheader("🕵️ Spot the Signs")
+
+    ui.html(ui.tips())
+
+    st.divider()
 
     st.subheader("About ScamShield AI")
 
