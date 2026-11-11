@@ -98,6 +98,7 @@ div[data-testid="stForm"] { border: none; padding: 0; }
   border-radius: var(--ss-radius-lg); padding: 24px;
 }
 [class*="st-key-ss_card_alt"] { background: var(--ss-surface-2); border: none; }
+[class*="st-key-ss_nav"] button p { white-space: nowrap; overflow: visible; text-overflow: clip; }
 [class*="st-key-ss_nav"] {
   border-bottom: 1px solid var(--ss-border); padding-bottom: 12px; margin-bottom: 8px;
 }
@@ -170,7 +171,7 @@ div[data-testid="stForm"] { border: none; padding: 0; }
 a.ss-ghost {
   display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 3rem;
   padding: 0 1.2rem; border: 1px solid var(--ss-border); border-radius: var(--ss-radius-sm);
-  color: var(--ss-text) !important; text-decoration: none; font-weight: 700;
+  color: var(--ss-text) !important; text-decoration: none; font-weight: 700; white-space: nowrap;
 }
 a.ss-ghost:hover { border-color: var(--ss-red); }
 .ss-section-title { font-size: 2.5rem; font-weight: 700; margin: 0 0 .25rem; }

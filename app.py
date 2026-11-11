@@ -139,7 +139,7 @@ def nav():
     configured = auth.clerk_configured()
     with st.container(key="ss_nav"):
         brand, home, scanner, _, account, cta = st.columns(
-            [3, 0.8, 0.9, 1.6, 1.1, 1.4], vertical_alignment="center")
+            [2.6, 0.8, 0.9, 0.9, 1.8, 1.5], vertical_alignment="center")
         brand.markdown('<div class="ss-brand">🛡️ ScamShield AI</div>', unsafe_allow_html=True)
         home.button("Home", type="tertiary", on_click=go, args=("home",), key="nav_home")
         scanner.button("Scanner", type="tertiary", on_click=go, args=("scanner",),
