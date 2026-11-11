@@ -51,8 +51,12 @@ This setup follows Clerk's official guides:
    python -m pip install -r requirements.txt
    ```
    ```bash
-   python -m streamlit run mobile_app.py
+   python -m streamlit run streamlit_app.py
    ```
+   `streamlit_app.py` is the front door: phones get the phone app (`mobile_app.py`,
+   address `/phone`) and computers and tablets get the website (`app.py`, address `/web`).
+   It also runs right after signing in, because Clerk always returns to the main address.
+   Both versions have a "Switch to ... version" button; `?view=phone` or `?view=web` forces one.
 5. **Streamlit Cloud:** paste the same text into the app's **Settings → Secrets**, with the
    cloud redirect URI.
 
@@ -108,7 +112,11 @@ These tests use their own fake keys and need no Clerk account.
 2. share.streamlit.io → your app → **⋮ → Settings → Secrets**: paste your
    `secrets.toml`, but with
    `redirect_uri = "https://YOUR-APP.streamlit.app/oauth2callback"`. Save.
-3. `requirements.txt` must list **Authlib** and **httpx**. Without httpx the
+3. To get the automatic phone/desktop choice online, the app's **main file** must be
+   `streamlit_app.py` (it was `mobile_app.py`). If Streamlit Cloud doesn't let you edit
+   it, delete the app and deploy it again from the same repository with main file
+   `streamlit_app.py` and the same `junosai` address, then paste the Secrets again.
+4. `requirements.txt` must list **Authlib** and **httpx**. Without httpx the
    SIGN IN button gives "Internal server error" on the hosted app.
 
 Without step 2 the hosted app opens with no sign-in at all.

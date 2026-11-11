@@ -8,6 +8,8 @@ from ocr_engine import OCRError, read_text
 
 from experiment_v10 import scan_message
 from streamlit_auth import account_settings, require_sign_in
+import device
+import ui_theme as ui
 
 
 # ==========================================
@@ -31,77 +33,15 @@ st.set_page_config(
 # APP DESIGN
 # ==========================================
 
-st.markdown("""
-<style>
-.block-container {
-    max-width: 720px;
-    padding-top: 1.2rem;
-    padding-bottom: 3rem;
-}
-
-h1 {
-    letter-spacing: -0.035em;
-}
-
-div[data-testid="stForm"] {
-    border-radius: 18px;
-    padding: 1rem;
-}
-
-.stButton button,
-.stFormSubmitButton button {
-    min-height: 3.2rem;
-    border-radius: 12px;
-    font-weight: bold;
-}
-
-textarea {
-    font-size: 16px !important;
-    line-height: 1.5 !important;
-}
-
-/* Experiment 10: verdict-source badges (black, red and white) */
-.ss-source {
-    border: 1px solid #ff4b4b;
-    border-radius: 14px;
-    padding: .8rem 1rem;
-    margin: .4rem 0 .8rem 0;
-    background: #0e1117;
-    color: #ffffff;
-}
-
-.ss-badge {
-    display: inline-block;
-    border-radius: 999px;
-    padding: .15rem .65rem;
-    margin: .15rem .3rem .15rem 0;
-    font-size: .85rem;
-    font-weight: bold;
-    border: 1px solid #ff4b4b;
-    color: #ffffff;
-    background: #262730;
-}
-
-.ss-badge.on {
-    background: #ff4b4b;
-    color: #ffffff;
-}
-
-@media (max-width: 600px) {
-    .block-container {
-        padding-left: .85rem;
-        padding-right: .85rem;
-    }
-}
-</style>
-""", unsafe_allow_html=True)
+# Black, red and white ScamShield design system (same as the Figma file).
+ui.apply_theme("mobile")
 
 
 # ==========================================
 # SIGN-IN (Clerk) - only when configured
 # ==========================================
 
-require_sign_in()
+require_sign_in(footer=lambda: device.switch_view_button("phone"))
 
 
 # ==========================================
@@ -134,47 +74,7 @@ def changed_history_preference():
 # ==========================================
 
 def show_verdict_banner(risk):
-    risk = str(risk)
-
-    if risk.upper().startswith("HIGH"):
-
-        st.error(
-            "🚨 HIGH RISK — POSSIBLE SCAM\n\n"
-            "Strong scam indicators were detected. "
-            "Do not reply, click suspicious links, "
-            "or share personal information."
-        )
-
-    elif risk.upper().startswith(
-        "NEEDS REVIEW - AI MODEL ONLY"
-    ):
-
-        st.warning(
-            "⚠️ NEEDS REVIEW — AI MODEL ONLY\n\n"
-            "Only the AI model flagged this message. "
-            "No security rule found scam behaviour "
-            "(such as password requests, fees, or "
-            "changed bank details). Check who sent "
-            "it before acting."
-        )
-
-    elif risk.upper().startswith("NEEDS"):
-
-        st.warning(
-            "⚠️ NEEDS REVIEW\n\n"
-            "ScamShield found warning signs. "
-            "Verify the message through an "
-            "official channel."
-        )
-
-    else:
-
-        st.info(
-            "ℹ️ NO KNOWN SCAM PATTERN DETECTED\n\n"
-            "No strong pattern was detected. "
-            "This does not prove the message "
-            "is legitimate."
-        )
+    ui.html(ui.verdict_card(risk))
 
 
 # ==========================================
@@ -260,9 +160,11 @@ st.write(
     "messages, emails, and screenshots."
 )
 
-st.warning(
-    "ScamShield is an experimental security tool. "
-    "A low-risk result never guarantees safety."
+ui.html(
+    ui.badge("🛡️ Free scam checker", on=True)
+    + ui.badge("🧠 AI + 10 scam rules")
+    + '<p class="ss-small">ScamShield is an experimental security '
+    "tool. A low-risk result never guarantees safety.</p>"
 )
 
 st.divider()
@@ -535,22 +437,8 @@ with results_tab:
         ai_on = source in ("ai", "ai_and_rules")
         rules_on = source in ("rules", "ai_and_rules")
 
-        st.markdown(
-            '<div class="ss-source">'
-            "<b>Verdict source: "
-            + str(report.get(
-                "verdict_source_label", "Unknown"
-            ))
-            + "</b><br>"
-            '<span class="ss-badge'
-            + (" on" if ai_on else "")
-            + '">🧠 AI model</span>'
-            '<span class="ss-badge'
-            + (" on" if rules_on else "")
-            + '">🛡️ Security rules</span>'
-            "</div>",
-            unsafe_allow_html=True
-        )
+        ui.html(ui.verdict_source(report))
+        ui.html(ui.ai_row(report))
 
         for line in report.get("explanation", []):
             st.write("• " + str(line))
@@ -565,40 +453,7 @@ with results_tab:
                 f"{len(warnings)} warning sign(s) found:"
             )
 
-            for finding in warnings:
-
-                description = finding.get(
-                    "description",
-                    "Unspecified warning"
-                )
-
-                rule_set = str(
-                    finding.get("source", "")
-                ).upper()
-
-                if rule_set:
-                    description += (
-                        f" ({rule_set} rule)"
-                    )
-
-                severity = finding.get(
-                    "severity", "low"
-                )
-
-                if severity == "high":
-                    st.error(
-                        "🚨 " + description
-                    )
-
-                elif severity == "medium":
-                    st.warning(
-                        "⚠️ " + description
-                    )
-
-                else:
-                    st.write(
-                        "⚠️ " + description
-                    )
+            ui.html(ui.report_warnings(report))
 
         else:
 
@@ -652,6 +507,10 @@ with results_tab:
                         language=None
                     )
 
+        st.subheader("✅ What To Do Next")
+
+        ui.html(ui.next_steps(risk))
+
         st.divider()
 
         st.warning(
@@ -692,23 +551,7 @@ with history_tab:
             st.rerun()
 
         for entry in st.session_state.history:
-
-            with st.container(border=True):
-
-                st.write(
-                    "**" + entry["risk"] + "**"
-                )
-
-                st.caption(
-                    "AI: "
-                    + entry["prediction"].upper()
-                    + (
-                        " | Source: " + entry["source"]
-                        if entry.get("source") else ""
-                    )
-                )
-
-                st.write(entry["preview"])
+            ui.html(ui.history_entry(entry))
 
     else:
 
@@ -729,6 +572,13 @@ def clear_my_data():
 with settings_tab:
 
     account_settings(clear_app_data=clear_my_data)
+
+    if device.routed():
+        st.divider()
+        st.subheader("🖥️ Version")
+        st.caption("ScamShield picks the phone or desktop version for your device. "
+                   "You can switch any time.")
+        device.switch_view_button("phone", where="settings")
 
 
 # ==========================================
@@ -793,8 +643,8 @@ with info_tab:
 # FOOTER
 # ==========================================
 
-st.divider()
+ui.html(ui.footer(
+    "Experiment 10 · A low-risk result never guarantees safety."
+))
 
-st.caption(
-    "🛡️ ScamShield AI 😎 | Experiment 10"
-)
+device.switch_view_button("phone")

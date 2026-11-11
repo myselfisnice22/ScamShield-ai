@@ -1,4 +1,4 @@
-streamlit>=1.42
+streamlit>=1.46
 Pillow
 Pytesseract
 # Needed by st.login (Clerk sign-in). Authlib uses httpx to talk to Clerk;

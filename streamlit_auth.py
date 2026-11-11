@@ -312,26 +312,42 @@ def _show_header():
     st.caption("Mobile Edition | Experiment 10")
 
 
-def require_sign_in():
+def require_sign_in(header=None, footer=None):
     """Show the sign-in screen and STOP the app until the user is signed in.
 
-    Does nothing when Clerk is not configured.
+    Does nothing when Clerk is not configured. header / footer are optional
+    functions that draw the app's own top and bottom of the page around the
+    sign-in card (the website uses its nav bar and footer).
     """
     if not clerk_configured():
         return
 
     recorder = failure_recorder()
+    header = header or _show_header
+
+    def stop():
+        if footer:
+            footer()
+        st.stop()
 
     if is_signed_in():
         if not session_expired(_current_user()):
             return
-        _show_header()
-        st.subheader("⏰ Your session has expired")
-        st.write("For your security, please sign in again (sessions last 7 days).")
-        st.button("🔐 SIGN IN AGAIN", type="primary", use_container_width=True, on_click=_sign_out)
-        st.stop()
+        header()
+        with st.container(key="ss_card_session_expired"):
+            st.subheader("⏰ Your session has expired")
+            st.write("For your security, please sign in again (sessions last 7 days).")
+            st.button("🔐 SIGN IN AGAIN", type="primary", use_container_width=True,
+                      on_click=_sign_out)
+        stop()
 
-    _show_header()
+    header()
+    with st.container(key="ss_card_signin"):
+        _sign_in_card(recorder)
+    stop()
+
+
+def _sign_in_card(recorder):
     st.subheader("🔐 Sign in to continue")
 
     redirect_uri = _redirect_uri()
@@ -344,7 +360,7 @@ def require_sign_in():
         )
         st.link_button(f"➡️ Open {correct_address}", correct_address,
                        type="primary", use_container_width=True)
-        st.stop()
+        return
 
     local = _is_local(urlsplit(redirect_uri).hostname or "")
     missing = missing_sign_in_library()
@@ -354,12 +370,12 @@ def require_sign_in():
             f"**Fix:** add `{missing}` to requirements.txt (and on your own computer run "
             "`python -m pip install -r requirements.txt`), then restart ScamShield."
         )
-        st.stop()
+        return
 
     if prompt_problem():
         problem, fix = FAILURE_HELP["prompt" if local else "unknown"]
         st.error(f"Sign-in can't work yet: {problem}\n\n**Fix:** {fix}")
-        st.stop()
+        return
 
     failure = recorder.recent_failure()
     if failure:
@@ -381,7 +397,6 @@ def require_sign_in():
         "ScamShield never sees your password. Clerk handles sign-in. "
         "We only receive your name and email address to show who is signed in."
     )
-    st.stop()
 
 
 # ==========================================
