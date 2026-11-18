@@ -9,6 +9,7 @@ from ocr_engine import OCRError, read_text
 from experiment_v10 import scan_message
 from streamlit_auth import account_settings, first_name, is_signed_in, require_sign_in
 import device
+import streamlit_plans as plans
 import ui_theme as ui
 
 
@@ -109,15 +110,21 @@ def run_scan(message, announce=True):
         st.warning("Please enter a message first.")
         return None
 
+    # Plus / Pro monthly limit (tiers.py). Free is unchanged.
+    if not plans.use_check():
+        return None
+
     try:
         with st.spinner("ScamShield is analyzing..."):
             report = scan_message(message)
 
     except ValueError as error:
+        plans.give_back_check()
         st.error(str(error))
         return None
 
     except Exception:
+        plans.give_back_check()
         st.error(
             "The scanner encountered an error. "
             "Check your VS Code terminal."
@@ -190,9 +197,10 @@ ui.html(
 # INPUT TABS
 # ==========================================
 
-text_tab, screenshot_tab = st.tabs([
+text_tab, screenshot_tab, document_tab = st.tabs([
     "✍️ Text Scanner",
-    "📸 Screenshot Scanner"
+    "📸 Screenshot Scanner",
+    "📄 Document (Pro)"
 ])
 
 
@@ -404,6 +412,15 @@ with screenshot_tab:
 
 
 # ==========================================
+# DOCUMENT SCANNER (Pro) - see streamlit_plans.py
+# ==========================================
+
+with document_tab:
+
+    plans.document_scanner("mobile_document")
+
+
+# ==========================================
 # RESULTS / HISTORY / INFO TABS
 # ==========================================
 
@@ -610,11 +627,15 @@ def clear_my_data():
     st.session_state.history = []
     st.session_state.latest_report = None
     st.session_state.screenshot_report = None
+    plans.clear_document()
 
 
 with settings_tab:
 
     account_settings(clear_app_data=clear_my_data)
+
+    st.divider()
+    plans.show_plan()
 
     if device.routed():
         st.divider()
@@ -658,6 +679,13 @@ with info_tab:
     st.write(
         "**Screenshot technology:** "
         "Tesseract OCR"
+    )
+
+    st.write(
+        "**Documents (Pro):** "
+        "PDF, Word (.docx) and text files. "
+        "Scanned PDF pages are read with "
+        "Tesseract OCR."
     )
 
     st.write(

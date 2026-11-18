@@ -7,3 +7,9 @@ primaryColor = "#FF4B4B"
 backgroundColor = "#0E1117"
 secondaryBackgroundColor = "#262730"
 textColor = "#FFFFFF"
+
+[server]
+# Largest upload Streamlit accepts, in MB. Screenshots are limited to 5 MB and
+# Pro documents to 10 MB in the app itself. If you raise
+# SCAMSHIELD_MAX_DOCUMENT_MB, raise this too.
+maxUploadSize = 10

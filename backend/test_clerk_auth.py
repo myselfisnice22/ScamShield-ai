@@ -7,6 +7,8 @@ Run from the repository root:
     python -m unittest backend.test_clerk_auth -v
 """
 
+import os
+import tempfile
 import time
 import unittest
 from unittest import mock
@@ -15,6 +17,7 @@ import jwt
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 
+import tiers
 from backend import api, clerk_auth
 
 ISSUER = "https://test-app.clerk.accounts.dev"
@@ -121,6 +124,32 @@ class TestClerkEnabled(unittest.TestCase):
             "Access-Control-Request-Headers": "authorization,content-type"})
         self.assertEqual(response.status_code, 200)
         self.assertIn("authorization", response.headers.get("access-control-allow-headers", "").lower())
+
+    # ----- plans come from the verified Clerk token (tiers.py) -----
+    def account(self, token):
+        with tempfile.TemporaryDirectory() as folder, mock.patch.dict(
+                os.environ, {"SCAMSHIELD_USAGE_DB": os.path.join(folder, "usage.sqlite3")}):
+            data = client.get("/account", headers={"Authorization": "Bearer " + token}).json()
+            if tiers._store is not None:
+                tiers._store._db.close()
+                tiers._store = None
+            return data
+
+    def test_plan_claim_sets_the_plan(self):
+        self.assertEqual(self.account(make_token(plan="pro"))["plan"], "pro")
+        self.assertEqual(self.account(make_token(plan="plus"))["plan"], "plus")
+        self.assertEqual(self.account(make_token())["plan"], "free")
+
+    def test_free_user_cannot_scan_documents_even_with_local_test_plan(self):
+        # SCAMSHIELD_LOCAL_TEST_PLAN only applies when sign-in is OFF.
+        with mock.patch.dict(os.environ, {"SCAMSHIELD_LOCAL_TEST_PLAN": "pro"}):
+            response = client.post("/scan-document", files={"file": ("a.txt", b"hello", "text/plain")},
+                                   headers={"Authorization": "Bearer " + make_token()})
+        self.assertEqual(response.status_code, 403)
+
+    def test_document_scan_requires_sign_in(self):
+        response = client.post("/scan-document", files={"file": ("a.txt", b"hello", "text/plain")})
+        self.assertEqual(response.status_code, 401)
 
 
 class TestClerkDisabled(unittest.TestCase):

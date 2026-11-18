@@ -56,6 +56,27 @@
       <img id="image-preview" class="preview hidden" alt="Selected screenshot">
     </section>
 
+    <!-- ============ DOCUMENT (Pro) ============ -->
+    <section class="screen" id="screen-doc" aria-labelledby="t-doc">
+      <h1 id="t-doc">Check a document</h1>
+      <p class="muted">Check a PDF, Word (.docx) or text file, such as an invoice, job offer or
+        letter, for scam warning signs.</p>
+      <div class="card upgrade-card hidden" id="doc-upgrade">
+        <b>⭐ ScamShield Pro</b>
+        <p class="muted" id="doc-upgrade-text"></p>
+      </div>
+      <div id="doc-pro">
+        <p class="warning-note">Up to 10 MB. The document is checked in memory and not saved.
+          Remove passwords and private details first.</p>
+        <label class="btn primary file-btn">
+          📄 Choose document
+          <input type="file" id="doc-input" hidden
+                 accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain">
+        </label>
+        <p class="caption" id="doc-status"></p>
+      </div>
+    </section>
+
     <!-- ============ RESULTS ============ -->
     <section class="screen" id="screen-results" aria-labelledby="t-results">
       <h1 id="t-results">Results</h1>
@@ -66,6 +87,10 @@
           <div class="verdict-text" id="verdict-text"></div>
         </div>
         <p class="caption" id="risk-line"></p>
+        <div class="card hidden" id="doc-box">
+          <div><b id="doc-name"></b></div>
+          <ul id="doc-notes" class="plain-list caption"></ul>
+        </div>
 
         <h2>🧭 Where did this verdict come from?</h2>
         <div class="card source-card">
@@ -77,6 +102,11 @@
 
         <h2>🔎 Why this result?</h2>
         <ul id="warnings" class="warning-list"></ul>
+
+        <details class="card hidden" id="flagged-box">
+          <summary>📍 Where to look in the document</summary>
+          <ul id="flagged" class="plain-list"></ul>
+        </details>
 
         <details class="card" id="links-box">
           <summary>🔗 Links found (not opened)</summary>
@@ -97,6 +127,7 @@
           <button class="btn ghost" id="share-btn" type="button">📤 Share warning</button>
           <button class="btn ghost" id="again-btn" type="button">🔁 Scan another</button>
         </div>
+        <button class="btn primary hidden" id="report-btn" type="button">⬇️ Download report</button>
         <p class="warning-note">ScamShield is experimental. A low-risk result never proves a message is safe.</p>
       </div>
     </section>
@@ -131,8 +162,10 @@
         <button class="btn ghost small" id="sign-out" type="button">🚪 Sign out</button>
       </div>
       <div class="card">
+        <h2>Plan</h2>
+        <p class="muted" id="account-plan">Tap “Test connection” to see your plan.</p>
         <h2>Privacy</h2>
-        <p class="muted">Messages and screenshots are sent to the ScamShield server for checking.
+        <p class="muted">Messages, screenshots and documents are sent to the ScamShield server for checking.
           The server does not save them. History stays on this phone and is off by default.
           Links are never opened.</p>
         <h2>About</h2>
@@ -149,6 +182,7 @@
   <nav class="tabbar" aria-label="Main">
     <button class="tab active" data-screen="scan">✍️<span>Scan</span></button>
     <button class="tab" data-screen="shot">📸<span>Screenshot</span></button>
+    <button class="tab" data-screen="doc">📄<span>Docs</span></button>
     <button class="tab" data-screen="results">🔍<span>Results</span></button>
     <button class="tab" data-screen="history">🕘<span>History</span></button>
   </nav>

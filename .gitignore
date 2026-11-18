@@ -8,3 +8,6 @@ venv/
 *.log
 # Clerk CLI private files (claim/link data) - never commit
 .clerk/
+
+# Monthly usage counts (tiers.py) - local data, never commit
+.scamshield_data/

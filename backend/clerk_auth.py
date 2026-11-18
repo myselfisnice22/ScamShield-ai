@@ -87,8 +87,8 @@ def verify_token(token):
     return claims
 
 
-def current_user(request: Request):
-    """FastAPI dependency. Returns the Clerk user id, or None if sign-in is off."""
+def current_claims(request: Request):
+    """Return the verified token's claims, or None if sign-in is off."""
     if not settings.enabled:
         return None
     header = request.headers.get("Authorization", "")
@@ -96,4 +96,10 @@ def current_user(request: Request):
     if scheme.lower() != "bearer" or not token.strip():
         raise HTTPException(status_code=401, detail="Please sign in to use ScamShield.",
                             headers={"WWW-Authenticate": "Bearer"})
-    return verify_token(token.strip())["sub"]
+    return verify_token(token.strip())
+
+
+def current_user(request: Request):
+    """FastAPI dependency. Returns the Clerk user id, or None if sign-in is off."""
+    claims = current_claims(request)
+    return claims["sub"] if claims else None

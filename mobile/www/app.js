@@ -45,6 +45,7 @@
     keepHistory: load(KEYS.keep, false),
     history: load(KEYS.history, []),
     report: null,
+    account: null, // plan + monthly usage from the server (/account)
   };
 
   // ---------- navigation ----------
@@ -52,6 +53,7 @@
     document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("active", s.id === "screen-" + screen));
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.screen === screen));
     window.scrollTo(0, 0);
+    if (screen === "doc" || screen === "settings") refreshAccount();
   }
   document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => show(tab.dataset.screen)));
   $("open-settings").addEventListener("click", () => show("settings"));
@@ -152,6 +154,7 @@
         $("account-name").textContent = "Signed in as " + (c.user.fullName || email || "your account");
         $("account-card").classList.remove("hidden");
         if (document.querySelector("#screen-signin.active")) show("scan");
+        refreshAccount();
         if (this.pendingShare) { const item = this.pendingShare; this.pendingShare = null; handleShared(item); }
       } else {
         this.showSignIn();
@@ -176,6 +179,8 @@
     state.report = null;
     $("results").classList.add("hidden");
     $("results-empty").classList.remove("hidden");
+    state.account = null;
+    renderPlan();
     await c.signOut();
   });
 
@@ -188,10 +193,14 @@
     const base = apiBase();
     if (!base) throw new Error("Set the ScamShield server address in Settings (⚙️) first.");
     options = Object.assign({}, options);
+    const asText = options.asText; // e.g. a downloaded report
+    const timeoutMs = options.timeoutMs || CONFIG.requestTimeoutMs || 45000;
+    delete options.asText;
+    delete options.timeoutMs;
     const token = await Auth.token();
     if (token) options.headers = Object.assign({}, options.headers, { Authorization: "Bearer " + token });
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), CONFIG.requestTimeoutMs || 45000);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     let response;
     try {
       response = await fetch(base + path, Object.assign({ signal: controller.signal }, options));
@@ -202,8 +211,10 @@
     } finally {
       clearTimeout(timer);
     }
+    let body = "";
     let data = null;
-    try { data = await response.json(); } catch (e) { /* not JSON */ }
+    try { body = await response.text(); } catch (e) { /* no body */ }
+    try { data = JSON.parse(body); } catch (e) { /* not JSON */ }
     // 401 = the server did not accept the sign-in. If Clerk says we're signed
     // out, show the sign-in box. If we ARE signed in, just show the message
     // (otherwise the user would be stuck on an empty sign-in screen).
@@ -213,7 +224,34 @@
       if (Array.isArray(detail)) detail = "Please enter a message (up to 5,000 characters).";
       throw new Error(detail || ("The server returned an error (" + response.status + ")."));
     }
-    return data;
+    return asText ? body : data;
+  }
+
+  // ---------- plan and monthly checks (Free / Plus / Pro) ----------
+  // The server decides the plan and enforces limits. This only shows them.
+  async function refreshAccount() {
+    if (!apiBase() || (Auth.enabled && !Auth.signedIn())) return;
+    try {
+      state.account = await callApi("/account", { method: "GET" });
+    } catch (e) { /* offline: the server still enforces everything */ }
+    renderPlan();
+  }
+
+  function renderPlan() {
+    const a = state.account;
+    let line = "Tap “Test connection” to see your plan.";
+    if (a) {
+      line = a.plan_name + " (" + a.price + ")";
+      if (a.monthly_limit !== null && a.checks_used !== null) {
+        line += " · " + Math.min(a.checks_used, a.monthly_limit) + " of " + a.monthly_limit +
+          " checks used this month · resets on " + a.resets_on;
+      }
+    }
+    $("account-plan").textContent = line;
+    const locked = Boolean(a && !a.documents);
+    $("doc-upgrade").classList.toggle("hidden", !locked);
+    $("doc-pro").classList.toggle("hidden", locked);
+    $("doc-upgrade-text").textContent = (a && a.upgrade_message) || "";
   }
 
   async function scanText(text) {
@@ -244,6 +282,59 @@
       finish(report, report.extracted_text || "");
     } catch (e) {
       toast(e.message);
+    } finally {
+      busy(false);
+    }
+  }
+
+  // ---------- documents (Pro) ----------
+  const DOC_TYPES = [".pdf", ".docx", ".txt"];
+
+  async function scanDocument(file) {
+    const name = file.name || "document";
+    const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
+    const maxMb = CONFIG.maxDocumentMb || 10;
+    $("doc-status").textContent = "";
+    if (!DOC_TYPES.includes(ext)) { toast("Please choose a PDF, Word (.docx) or text (.txt) file."); return; }
+    if (file.size > maxMb * 1024 * 1024) { toast("The file is too large. Please choose a document under " + maxMb + " MB."); return; }
+    if (file.size === 0) { toast("The file is empty."); return; }
+    busy(true, "Reading and checking document… Scanned pages can take up to a minute.");
+    try {
+      const form = new FormData();
+      form.append("file", file, name);
+      const report = await callApi("/scan-document", {
+        method: "POST", body: form, timeoutMs: CONFIG.documentTimeoutMs || 120000 });
+      finish(report, "📄 " + ((report.document && report.document.file_name) || name));
+    } catch (e) {
+      $("doc-status").textContent = "⚠️ " + e.message;
+      toast(e.message);
+    } finally {
+      busy(false);
+    }
+  }
+
+  async function downloadReport() {
+    const r = state.report;
+    if (!r || !r.report_id) return;
+    busy(true, "Preparing report…");
+    try {
+      const text = await callApi("/reports/" + encodeURIComponent(r.report_id), { method: "GET", asText: true });
+      const fileName = "ScamShield-report.txt";
+      if (Share) {
+        // Inside the phone app: share the report text (save to Files, Drive, email…).
+        await Share.share({ title: "ScamShield document report", text: text, dialogTitle: "Save or share report" });
+      } else {
+        const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName;
+        document.body.append(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+      }
+    } catch (e) {
+      if (e && e.message && !/cancel/i.test(e.message)) toast(e.message);
     } finally {
       busy(false);
     }
@@ -320,7 +411,8 @@
       item.append(document.createTextNode(icon + w.description + " "));
       const tag = document.createElement("span");
       tag.className = "rule-set";
-      tag.textContent = "(" + String(w.source || "").toUpperCase() + " rule)";
+      tag.textContent = "(" + String(w.source || "").toUpperCase() + " rule)" +
+        (w.locations && w.locations.length ? " · found in " + w.locations.join(", ") : "");
       item.append(tag);
       return item;
     });
@@ -329,6 +421,23 @@
     const urls = report.urls || [];
     $("links-box").classList.toggle("hidden", urls.length === 0);
     $("links").replaceChildren(...urls.map((u) => li(u)));
+
+    // Document checks (Pro): file details, where to look, and the report.
+    const doc = report.document;
+    $("doc-box").classList.toggle("hidden", !doc);
+    $("doc-name").textContent = doc ? "📄 " + doc.file_name : "";
+    $("doc-notes").replaceChildren(...(report.coverage_notes || []).map((n) => li(n)));
+    const flagged = report.flagged_sections || [];
+    $("flagged-box").classList.toggle("hidden", flagged.length === 0);
+    $("flagged").replaceChildren(...flagged.map((f) => {
+      const item = li(f.location.charAt(0).toUpperCase() + f.location.slice(1) + " — " + f.risk);
+      const excerpt = document.createElement("div");
+      excerpt.className = "flagged-excerpt";
+      excerpt.textContent = "“" + f.excerpt + "”";
+      item.append(excerpt);
+      return item;
+    }));
+    $("report-btn").classList.toggle("hidden", !report.report_id);
 
     $("text-box").classList.toggle("hidden", !report.extracted_text);
     $("extracted").textContent = report.extracted_text || "";
@@ -346,6 +455,7 @@
     state.report = report;
     render(report);
     show("results");
+    refreshAccount(); // update "checks used this month"
     if (report.level === "high" && Haptics) {
       Haptics.notification({ type: "WARNING" }).catch(() => {});
     }
@@ -394,8 +504,16 @@
     scanImage(file, file.name); // analyse straight away
   });
 
+  // ---------- document screen ----------
+  $("doc-input").addEventListener("change", (event) => {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = ""; // allow choosing the same file again
+    if (file) scanDocument(file);
+  });
+
   // ---------- results actions ----------
-  $("again-btn").addEventListener("click", () => show("scan"));
+  $("again-btn").addEventListener("click", () => show(state.report && state.report.document ? "doc" : "scan"));
+  $("report-btn").addEventListener("click", downloadReport);
   $("share-btn").addEventListener("click", async () => {
     const r = state.report;
     if (!r) return;
@@ -465,6 +583,7 @@
       const data = await callApi("/health", { method: "GET" });
       $("api-status").textContent = "✅ Connected · scanner " + data.version;
       $("about-version").textContent = "ScamShield AI · " + data.version + " scanner";
+      refreshAccount();
     } catch (e) { $("api-status").textContent = "⚠️ " + e.message; }
   });
 
@@ -502,6 +621,7 @@
   }
 
   Auth.init();
+  if (!Auth.enabled) refreshAccount();
 
   renderHistory();
 })();

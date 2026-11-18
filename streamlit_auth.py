@@ -35,6 +35,8 @@ from urllib.parse import urlsplit
 
 import streamlit as st
 
+import tiers
+
 PROVIDER = "clerk"
 
 # Clerk's free (Hobby) plan has a fixed 7-day session lifetime. Streamlit's own
@@ -530,3 +532,24 @@ def account_settings(clear_app_data=None):
 def account_box():
     """Kept for older callers: same as the Settings tab's account section."""
     account_settings()
+
+
+# ==========================================
+# Plan (Free / Plus / Pro) - see tiers.py
+# ==========================================
+
+def current_account():
+    """Return (account id for usage counting, plan) for this visitor.
+
+    The plan comes from the Clerk account's public metadata (see tiers.py).
+    Without Clerk there are no accounts, so SCAMSHIELD_LOCAL_TEST_PLAN applies.
+    """
+    if not clerk_configured():
+        return tiers.LOCAL_USER, tiers.local_test_plan()
+    if not is_signed_in():
+        return None, "free"
+    user = _current_user()
+    user_id = user.get("sub")
+    if not user_id:  # can't count usage without an id
+        return None, "free"
+    return str(user_id), tiers.plan_from_claims(user)

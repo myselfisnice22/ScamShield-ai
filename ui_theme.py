@@ -373,9 +373,11 @@ def report_warnings(report):
     parts = []
     for finding in report.get("warnings", []):
         rule = str(finding.get("source", "")).upper()
+        detail = f"{rule} rule" if rule else ""
+        if finding.get("locations"):  # document checks: where it was found
+            detail = (detail + " · " if detail else "") + "found in " + ", ".join(finding["locations"])
         parts.append(warning_item(finding.get("description", "Unspecified warning"),
-                                  finding.get("severity", "low"),
-                                  f"{rule} rule" if rule else ""))
+                                  finding.get("severity", "low"), detail))
     return "".join(parts)
 
 

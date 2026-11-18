@@ -101,6 +101,8 @@ details.card summary { cursor: pointer; font-weight: 600; min-height: 32px; }
 .verdict.none { background: var(--blue-dark); color: var(--blue); }
 
 .source-card { border-color: var(--red); }
+.upgrade-card { border-color: var(--red); }
+.flagged-excerpt { color: var(--muted); font-size: .85rem; margin: 2px 0 10px; white-space: pre-wrap; word-break: break-word; }
 .badge {
   display: inline-block; margin: 8px 6px 4px 0; padding: 3px 12px;
   border-radius: 999px; border: 1px solid var(--red);

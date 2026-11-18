@@ -177,3 +177,32 @@ python -m unittest test_streamlit_auth test_clerk_login_flow -v
 `test_clerk_login_flow` starts the real app and a fake Clerk (`clerk_mock_server.py`)
 and checks login, refresh, logout, expired tokens, replayed callbacks and the
 127.0.0.1 problem. It uses a temporary secrets file, never your real one.
+
+## Plans: Free, Plus and Pro
+
+| Plan | Price | Monthly checks | Extra |
+|---|---|---|---|
+| Free | R0/month | No monthly limit (unchanged) | Text and screenshot checks |
+| Plus | R70/month | 100 (`SCAMSHIELD_PLUS_MONTHLY_CHECKS`) | |
+| Pro | R90/month | 300 (`SCAMSHIELD_PRO_MONTHLY_CHECKS`) | PDF/Word/text document checks and downloadable reports |
+
+ScamShield has **no payment system**. A user's plan is read from their Clerk account's
+**public metadata**. Users can't change it themselves. To put someone on Pro after they've paid
+(outside the app), go to the Clerk dashboard → **Users** → the user → **Metadata** → **Public**:
+
+```json
+{ "plan": "pro" }
+```
+
+For the plan to reach ScamShield:
+- **Backend API / phone app:** Clerk dashboard → **Sessions** → **Customize session token**, add
+  `{"plan": "{{user.public_metadata.plan}}"}`.
+- **Website:** add the `public_metadata` scope to the Clerk OAuth application and to
+  `client_kwargs` in `secrets.toml` (`scope = "openid profile email public_metadata"`).
+  Then sign out and in again.
+
+Anyone without a plan is on Free. Monthly counts are kept in `.scamshield_data/usage.sqlite3`
+(change with `SCAMSHIELD_USAGE_DB`) and reset on the 1st of each month (UTC). See `tiers.py`.
+
+**Local testing without Clerk:** set `SCAMSHIELD_LOCAL_TEST_PLAN=pro` (or `plus`). It is ignored
+whenever Clerk sign-in is turned on.

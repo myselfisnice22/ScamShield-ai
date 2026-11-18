@@ -17,6 +17,12 @@ ScamShield AI checks messages and screenshots for signs of scams.
 * **Messages and screenshots you choose to scan.** They are sent over an encrypted (HTTPS)
   connection to the ScamShield server, checked, and the result is sent back.
   The server **does not store** them and does not log their contents.
+* **Documents you choose to check (Pro).** PDF, Word and text files are checked in the
+  server's memory and not saved. The finished report (result, warning signs and short
+  excerpts of flagged parts, no account details) is kept in memory for up to 60 minutes
+  so you can download it, then deleted.
+* **Monthly check counts (Plus and Pro).** The server stores your Clerk user ID and how many
+  checks you used each month, to enforce your plan's limit. Not your messages, name or email.
 * **Your IP address** is kept in the server's memory for about one minute to stop
   abuse (limiting how many scans can be sent per minute). It is not saved.
   [Also list anything your hosting provider logs.]

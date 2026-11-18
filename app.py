@@ -16,6 +16,7 @@ from PIL import Image, UnidentifiedImageError
 
 import device
 import streamlit_auth as auth
+import streamlit_plans as plans
 import ui_theme as ui
 from experiment_v10 import scan_message
 from ocr_engine import OCRError, read_text
@@ -80,6 +81,7 @@ def changed_history_preference():
 def clear_my_data():
     st.session_state.history = []
     st.session_state.latest_report = None
+    plans.clear_document()
 
 
 def scan_another():
@@ -96,13 +98,18 @@ def run_scan(message):
     if not message:
         st.warning("Please enter a message first.")
         return None
+    # Plus / Pro monthly limit (tiers.py). Free is unchanged.
+    if not plans.use_check():
+        return None
     try:
         with st.spinner("ScamShield is analysing..."):
             report = scan_message(message)
     except ValueError as error:
+        plans.give_back_check()
         st.error(str(error))
         return None
     except Exception:
+        plans.give_back_check()
         st.error("The scanner ran into a problem. Please try again.")
         return None
 
@@ -261,7 +268,10 @@ def home_page():
 # ==========================================
 
 def scanner_input():
-    text_tab, shot_tab = st.tabs(["✍️ Text", "📸 Screenshot"])
+    text_tab, shot_tab, document_tab = st.tabs(["✍️ Text", "📸 Screenshot", "📄 Document (Pro)"])
+
+    with document_tab:
+        plans.document_scanner("web_document")
 
     with text_tab:
         st.markdown("#### Your message")
@@ -378,6 +388,8 @@ def scanner_page():
         with st.container(key="ss_card_results"):
             scanner_results()
 
+    st.caption(plans.plan_line().replace("**", ""))
+
     st.write("")
     with st.expander("🕘 Scan history"):
         st.toggle("Remember scans during this session", key="keep_history",
@@ -423,6 +435,8 @@ def account_page():
     _, middle, _ = st.columns([1, 1.6, 1])
     with middle, st.container(key="ss_card_account"):
         auth.account_settings(clear_app_data=clear_my_data)
+        st.divider()
+        plans.show_plan()
     page_footer()
 
 

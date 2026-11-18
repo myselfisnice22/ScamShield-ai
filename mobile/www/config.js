@@ -14,6 +14,9 @@ window.SCAMSHIELD_CONFIG = {
   defaultApiUrl: "http://localhost:8000",
   requestTimeoutMs: 45000,
   maxHistory: 20,
+  // Pro document checks (the server enforces its own limits too).
+  maxDocumentMb: 10,
+  documentTimeoutMs: 120000,
 
   // Clerk sign-in. Leave "" to run without sign-in.
   // Paste your Clerk PUBLISHABLE key (starts with pk_test_ or pk_live_).

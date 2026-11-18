@@ -7,3 +7,7 @@ Pillow
 pytesseract
 # Clerk sign-in check
 PyJWT[crypto]==2.15.1
+# Pro document checks (PDF, Word .docx) - see document_check.py
+pypdf==6.17.0
+python-docx==1.2.0
+pypdfium2==5.13.0
