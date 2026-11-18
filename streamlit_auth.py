@@ -328,7 +328,7 @@ def is_signed_in():
 
 def _show_header():
     st.title("🛡️ ScamShield AI 😎")
-    st.caption("Mobile Edition | Experiment 10")
+    st.caption("Mobile Edition | Experiment 11")
 
 
 def require_sign_in(header=None, footer=None):

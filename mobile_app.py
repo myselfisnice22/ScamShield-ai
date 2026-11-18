@@ -6,7 +6,7 @@ from PIL import Image, UnidentifiedImageError
 
 from ocr_engine import OCRError, read_text
 
-from experiment_v10 import scan_message
+from experiment_v11 import scan_message
 from streamlit_auth import account_settings, first_name, is_signed_in, require_sign_in
 import device
 import streamlit_plans as plans
@@ -44,7 +44,7 @@ ui.apply_theme("mobile")
 
 def show_header():
     ui.html(ui.mobile_hero())
-    st.caption("Mobile Edition | Experiment 10")
+    st.caption("Mobile Edition | Experiment 11")
 
 
 require_sign_in(header=show_header,
@@ -483,7 +483,7 @@ with results_tab:
         )
 
         # ----------------------------------
-        # Experiment 10: where did the
+        # Since Experiment 10: where did the
         # verdict come from?
         # ----------------------------------
 
@@ -544,7 +544,7 @@ with results_tab:
 
             st.caption(
                 "The AI judges word patterns only. "
-                "In Experiment 10 the AI alone can "
+                "Since Experiment 10 the AI alone can "
                 "raise a message to NEEDS REVIEW, but "
                 "HIGH RISK needs supporting evidence "
                 "from the security rules."
@@ -660,20 +660,22 @@ with info_tab:
     st.subheader("About ScamShield AI")
 
     st.write(
-        "**Version:** Experiment 10"
+        "**Version:** Experiment 11"
     )
 
     st.write(
         "**Machine-learning model:** "
-        "V10 Naive Bayes (V7 data + synthetic "
-        "workplace examples), with calibrated "
+        "V11 Naive Bayes (V7 data + synthetic "
+        "workplace, story and South African "
+        "language examples), with calibrated "
         "probability"
     )
 
     st.write(
         "**Security analysis:** "
         "Experiment 8, 9 and 10 rules "
-        "(Experiment 10 adds workplace-fraud checks)"
+        "(Experiment 10 added workplace-fraud checks; "
+        "Experiment 11 made the account rule stricter)"
     )
 
     st.write(
@@ -721,7 +723,7 @@ with info_tab:
 # ==========================================
 
 ui.html(ui.footer(
-    "Experiment 10 · A low-risk result never guarantees safety."
+    "Experiment 11 · A low-risk result never guarantees safety."
 ))
 
 device.switch_view_button("phone")

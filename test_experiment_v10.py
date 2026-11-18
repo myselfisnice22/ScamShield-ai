@@ -465,7 +465,8 @@ class TestStreamlitApp(unittest.TestCase):
 
     def test_app_loads(self):
         app = self.run_app()
-        self.assertTrue(any("Experiment 10" in c.value for c in app.caption))
+        # The app now runs Experiment 11 (which keeps all of Experiment 10's rules).
+        self.assertTrue(any("Experiment 11" in c.value for c in app.caption))
 
     def test_text_scan_shows_verdict_source(self):
         app = self.run_app()

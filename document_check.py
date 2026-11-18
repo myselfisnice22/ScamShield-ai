@@ -1,7 +1,7 @@
 """ScamShield AI - PDF and document checks (Pro).
 
 Reads the text out of a PDF, Word (.docx) or plain-text (.txt) file and sends
-it through the SAME scanner as messages (experiment_v10.scan_message). Used by
+it through the SAME scanner as messages (experiment_v11.scan_message). Used by
 both the Streamlit website and the backend API.
 
 HOW A DOCUMENT IS CHECKED
@@ -52,7 +52,7 @@ SUPPORTED = {".pdf": "PDF", ".docx": "Word document", ".txt": "Text file"}
 SUPPORTED_LABEL = "PDF, Word (.docx) or text (.txt)"
 
 HIGH = "HIGH RISK - POSSIBLE SCAM"
-RISK_ORDER = [  # most serious first (same strings as experiment_v10)
+RISK_ORDER = [  # most serious first (same strings as experiments 10 and 11)
     HIGH,
     "NEEDS REVIEW - STRONG WARNING SIGNS",
     "NEEDS REVIEW - CHECK CONTEXT",
@@ -337,7 +337,7 @@ def _excerpt(text):
 
 
 def check_document(name, data, scan):
-    """Extract, scan and combine. `scan` is experiment_v10.scan_message.
+    """Extract, scan and combine. `scan` is experiment_v11.scan_message.
 
     Returns a result with the same main fields as a message scan, plus
     "document" (file details) and "flagged_sections" (where problems are).

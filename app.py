@@ -2,7 +2,7 @@
 
 Built from the ScamShield Figma website design (black, red and white
 design system in ui_theme.py). Uses the same scanner as mobile_app.py:
-Experiment 10 (AI model + security rules), Tesseract OCR for screenshots,
+Experiment 11 (AI model + security rules), Tesseract OCR for screenshots,
 and Clerk sign-in when it is configured in secrets.
 
 Run:  python -m streamlit run app.py
@@ -18,7 +18,7 @@ import device
 import streamlit_auth as auth
 import streamlit_plans as plans
 import ui_theme as ui
-from experiment_v10 import scan_message
+from experiment_v11 import scan_message
 from ocr_engine import OCRError, read_text
 
 st.set_page_config(

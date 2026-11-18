@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from unittest import mock
 
 with contextlib.redirect_stdout(io.StringIO()):
-    from experiment_v10 import scan_message
+    from experiment_v11 import scan_message
 
 import document_check as dc
 from ocr_engine import OCRError

@@ -2,7 +2,7 @@
 
 The phone app sends messages (or screenshots) here, and this server checks
 them with the SAME Python scanner used by the Streamlit website
-(experiment_v10.scan_message). Nothing about the scanner is changed.
+(experiment_v11.scan_message). Nothing about the scanner is changed.
 
 Run locally (from the repository root):
     python -m uvicorn backend.api:app --reload --port 8000
@@ -56,7 +56,7 @@ import contextlib  # noqa: E402
 import io  # noqa: E402
 
 with contextlib.redirect_stdout(io.StringIO()):  # hide "model loaded" prints
-    from experiment_v10 import VERSION, scan_message  # noqa: E402
+    from experiment_v11 import VERSION, scan_message  # noqa: E402
 
 import document_check  # noqa: E402
 import tiers  # noqa: E402
